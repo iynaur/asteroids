@@ -9,8 +9,6 @@
 #include <windows.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
-#include <d3dx11.h> //TODO: remove
-#include <d3dx10.h> //TODO: remove
 #pragma warning(pop)
 #include "common_types.h"
 
@@ -125,11 +123,15 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 							
 							ID3D10Blob *vertexShader, *pixelShader;
 							
-							//TODO: switch to D3DCompile()
-							hr = D3DX11CompileFromFile("../../code/shaders/shader.hlsl", NULL, NULL, "VS", "vs_5_0", NULL, NULL, NULL, &vertexShader, NULL, NULL);
+							char shaderCode[] = {
+								"float4 VS(float4 inPos : POSITION) : SV_POSITION {\nreturn inPos;\n}\n\nfloat4 PS() : SV_TARGET {\nreturn float4(0.0f, 0.0f, 1.0f, 1.0f);\n}"
+							};
 							
+							//TODO: load from disk
+							//TODO: error msgs
+							hr = D3DCompile(shaderCode, sizeof(shaderCode), NULL, NULL, NULL,"VS", "vs_5_0", NULL, NULL, &vertexShader, NULL);
 							if (SUCCEEDED(hr)) {
-								hr = D3DX11CompileFromFile("../../code/shaders/shader.hlsl", NULL, NULL, "PS", "ps_5_0", NULL, NULL, NULL, &pixelShader, NULL, NULL);
+								hr = D3DCompile(shaderCode, sizeof(shaderCode), NULL, NULL, NULL,"PS", "ps_5_0", NULL, NULL, &pixelShader, NULL);
 								if (SUCCEEDED(hr)) {
 									b32 running = true;
 									while (running) {
