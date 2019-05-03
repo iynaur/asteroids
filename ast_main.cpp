@@ -1,6 +1,16 @@
+/*
+
+---------------- TODO LIST ----------------
+- Fullscreen mode + switching with atl+enter
+- Offline shader compilation
+*/
+
 #pragma warning(push, 0)
 #include <windows.h>
 #include <d3d11.h>
+#include <d3dcompiler.h>
+#include <d3dx11.h> //TODO: remove
+#include <d3dx10.h> //TODO: remove
 #pragma warning(pop)
 #include "common_types.h"
 
@@ -105,27 +115,41 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 				//TODO: Error checking
 				if (SUCCEEDED(hr)) {
 					ID3D11RenderTargetView* renderTargetView;
-					
 					ID3D11Texture2D* backBufferTexture;
 					hr = swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&backBufferTexture);
 					if (SUCCEEDED(hr)) {
 						hr = device->CreateRenderTargetView(backBufferTexture, 0, &renderTargetView);
-						backBufferTexture->Release();
-						deviceContext->OMSetRenderTargets(1, &renderTargetView, 0);
 						if (SUCCEEDED(hr)) {
-							b32 running = true;
-							while (running) {
-								MSG msg;
-								while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE)) {
-									if (msg.message==WM_QUIT) running = false;
-									TranslateMessage(&msg);
-									DispatchMessageA(&msg);
+							backBufferTexture->Release();
+							deviceContext->OMSetRenderTargets(1, &renderTargetView, 0);
+							
+							ID3D10Blob *vertexShader, *pixelShader;
+							
+							//TODO: switch to D3DCompile()
+							hr = D3DX11CompileFromFile("../../code/shaders/shader.hlsl", NULL, NULL, "VS", "vs_5_0", NULL, NULL, NULL, &vertexShader, NULL, NULL);
+							
+							if (SUCCEEDED(hr)) {
+								hr = D3DX11CompileFromFile("../../code/shaders/shader.hlsl", NULL, NULL, "PS", "ps_5_0", NULL, NULL, NULL, &pixelShader, NULL, NULL);
+								if (SUCCEEDED(hr)) {
+									b32 running = true;
+									while (running) {
+										MSG msg;
+										while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE)) {
+											if (msg.message==WM_QUIT) running = false;
+											TranslateMessage(&msg);
+											DispatchMessageA(&msg);
+										}
+										
+										float clearColour[4] = {0.0f, 0.2f, 0.4f, 1.0f};
+										deviceContext->ClearRenderTargetView(renderTargetView, clearColour);
+										
+										swapChain->Present(1, 0);
+									}
+								} else {
+									Win32MessageBoxError("Failed to compile pixel shader");
 								}
-								
-								float clearColour[4] = {0.8f, 0.2f, 0.4f, 1.0f};
-								deviceContext->ClearRenderTargetView(renderTargetView, clearColour);
-								
-								swapChain->Present(1, 0);
+							} else {
+								Win32MessageBoxError("Failed to compile vertex shader");
 							}
 						} else {
 							Win32MessageBoxError("Failed to create render target view");
