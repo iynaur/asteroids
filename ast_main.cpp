@@ -1,5 +1,4 @@
 /*
-
 ---------------- TODO LIST ----------------
 - Fullscreen mode + switching with atl+enter
 - Offline shader compilation
@@ -25,7 +24,7 @@ internal void Win32Error(char* customErrorMessage)
 	}
 }
 
-internal void Win32MessageBoxError(char* message)
+internal void Win32ShowMessageBoxError(char* message)
 {
 	MessageBoxA(0, message, "Error", MB_ICONERROR);
 }
@@ -123,44 +122,60 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 							
 							ID3D10Blob *vertexShader, *pixelShader;
 							
-							char shaderCode[] = {
-								"float4 VS(float4 inPos : POSITION) : SV_POSITION {\nreturn inPos;\n}\n\nfloat4 PS() : SV_TARGET {\nreturn float4(0.0f, 0.0f, 1.0f, 1.0f);\n}"
-							};
+							char* shaderFilename = "../../code/shaders/shader.hlsl";
 							
-							//TODO: load from disk
-							//TODO: error msgs
-							hr = D3DCompile(shaderCode, sizeof(shaderCode), NULL, NULL, NULL,"VS", "vs_5_0", NULL, NULL, &vertexShader, NULL);
-							if (SUCCEEDED(hr)) {
-								hr = D3DCompile(shaderCode, sizeof(shaderCode), NULL, NULL, NULL,"PS", "ps_5_0", NULL, NULL, &pixelShader, NULL);
+							HANDLE fileHandle = CreateFileA(
+								shaderFilename,
+								GENERIC_READ,
+								FILE_SHARE_READ,
+								NULL,
+								OPEN_EXISTING,
+								FILE_ATTRIBUTE_NORMAL,
+								NULL
+								);
+							if (fileHandle != INVALID_HANDLE_VALUE) {
+								LARGE_INTEGER fileSize;
+								GetFileSizeEx(fileHandle, &fileSize);
+								u64 size = (u64)fileSize.QuadPart;
+								void* shaderCode = VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+								DWORD readBytes = 0;
+								ReadFile(fileHandle, shaderCode, size, &readBytes, NULL);
+								//TODO: error msgs
+								hr = D3DCompile(shaderCode, size, NULL, NULL, NULL,"VS", "vs_5_0", NULL, NULL, &vertexShader, NULL);
 								if (SUCCEEDED(hr)) {
-									b32 running = true;
-									while (running) {
-										MSG msg;
-										while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE)) {
-											if (msg.message==WM_QUIT) running = false;
-											TranslateMessage(&msg);
-											DispatchMessageA(&msg);
+									hr = D3DCompile(shaderCode, size, NULL, NULL, NULL,"PS", "ps_5_0", NULL, NULL, &pixelShader, NULL);
+									if (SUCCEEDED(hr)) {
+										b32 running = true;
+										while (running) {
+											MSG msg;
+											while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE)) {
+												if (msg.message==WM_QUIT) running = false;
+												TranslateMessage(&msg);
+												DispatchMessageA(&msg);
+											}
+											
+											float clearColour[4] = {0.0f, 0.2f, 0.4f, 1.0f};
+											deviceContext->ClearRenderTargetView(renderTargetView, clearColour);
+											
+											swapChain->Present(1, 0);
 										}
-										
-										float clearColour[4] = {0.0f, 0.2f, 0.4f, 1.0f};
-										deviceContext->ClearRenderTargetView(renderTargetView, clearColour);
-										
-										swapChain->Present(1, 0);
+									} else {
+										Win32ShowMessageBoxError("Failed to compile pixel shader");
 									}
 								} else {
-									Win32MessageBoxError("Failed to compile pixel shader");
+									Win32ShowMessageBoxError("Failed to compile vertex shader");
 								}
 							} else {
-								Win32MessageBoxError("Failed to compile vertex shader");
+								Win32Error("Failed to open shader file");
 							}
 						} else {
-							Win32MessageBoxError("Failed to create render target view");
+							Win32ShowMessageBoxError("Failed to create render target view");
 						}
 					} else {
-						Win32MessageBoxError("Failed to get buffer");
+						Win32ShowMessageBoxError("Failed to get buffer");
 					}
 				} else {
-					Win32MessageBoxError("Failed to create Device and swap chain");
+					Win32ShowMessageBoxError("Failed to create Device and swap chain");
 				}
 			} else {
 				Win32Error("Failed to get client rect");
