@@ -99,10 +99,16 @@ internal b32 D3DInitContext(d3d_context* context, HWND hwnd, u32 clientWidth, u3
 	return(result);
 }
 
-internal b32 D3DInitShaders(void)
+struct d3d_shaders {
+	ID3D10Blob* vertexShaderBlob;
+};
+
+internal b32 D3DInitShaders(d3d_shaders* shaders, ID3D11Device* device, ID3D11DeviceContext* deviceContext)
 {
 	b32 result = false;
-	ID3D10Blob *vertexShader, *pixelShader;
+	ID3D10Blob* pixelShaderBlob;
+	ID3D11VertexShader* vertexShader;
+	ID3D11PixelShader* pixelShader;
 	
 	char* shaderFilename = "../../code/shaders/shader.hlsl";
 	
@@ -124,10 +130,14 @@ internal b32 D3DInitShaders(void)
 		DWORD readBytes = 0;
 		ReadFile(fileHandle, shaderCode, size, &readBytes, NULL);
 		//TODO: error msgs
-		HRESULT hr = D3DCompile(shaderCode, size, NULL, NULL, NULL,"VS", "vs_5_0", NULL, NULL, &vertexShader, NULL);
+		HRESULT hr = D3DCompile(shaderCode, size, NULL, NULL, NULL,"VS", "vs_5_0", NULL, NULL, &shaders->vertexShaderBlob, NULL);
 		if (SUCCEEDED(hr)) {
-			hr = D3DCompile(shaderCode, size, NULL, NULL, NULL,"PS", "ps_5_0", NULL, NULL, &pixelShader, NULL);
+			hr = D3DCompile(shaderCode, size, NULL, NULL, NULL,"PS", "ps_5_0", NULL, NULL, &pixelShaderBlob, NULL);
 			if (SUCCEEDED(hr)) {
+				device->CreateVertexShader(shaders->vertexShaderBlob->GetBufferPointer(), shaders->vertexShaderBlob->GetBufferSize(), NULL, &vertexShader);
+				device->CreatePixelShader(pixelShaderBlob->GetBufferPointer(), pixelShaderBlob->GetBufferSize(), NULL, &pixelShader);
+				deviceContext->VSSetShader(vertexShader, NULL, 0);
+				deviceContext->PSSetShader(pixelShader, NULL, 0);
 				result = true;
 			} else {
 				Win32ShowMessageBoxError("Failed to compile pixel shader");
@@ -181,20 +191,83 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 				u32 clientHeight = (u32)r.bottom - r.top;
 				d3d_context context;
 				if (D3DInitContext(&context, hwnd, clientWidth, clientHeight)) {
-					if (D3DInitShaders()) {
-						b32 running = true;
-						while (running) {
-							MSG msg;
-							while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE)) {
-								if (msg.message==WM_QUIT) running = false;
-								TranslateMessage(&msg);
-								DispatchMessageA(&msg);
+					d3d_shaders shaders;
+					if (D3DInitShaders(&shaders, context.device, context.deviceContext)) {
+						HRESULT hr;
+						struct vertex {
+							float pos[2];
+						};
+						
+						ID3D11Buffer* triVertexBuffer;
+						
+						vertex v[] = {
+							{ 0.0f, 0.5f },
+							{ 0.5f, -0.5f },
+							{ -0.5f, -0.5f },
+						};
+						
+						D3D11_BUFFER_DESC vertexBufferDesc = {
+							sizeof(vertex) * 3,
+							D3D11_USAGE_DEFAULT,
+							D3D11_BIND_VERTEX_BUFFER,
+							0,
+							0,
+							0
+						};
+						D3D11_SUBRESOURCE_DATA vertexBufferData = {
+							v,
+							0,
+							0
+						};
+						hr = context.device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &triVertexBuffer); 
+						if (SUCCEEDED(hr)) {
+							UINT stride = sizeof(vertex);
+							UINT offset = 0;
+							context.deviceContext->IASetVertexBuffers(0, 1, &triVertexBuffer, &stride, &offset);
+							ID3D11InputLayout* vertexLayout;
+							D3D11_INPUT_ELEMENT_DESC layout = {
+								"POSITION",
+								0,
+								DXGI_FORMAT_R32G32_FLOAT,
+								0,
+								0,
+								D3D11_INPUT_PER_VERTEX_DATA,
+								0
+							};
+							hr = context.device->CreateInputLayout(&layout, 1, shaders.vertexShaderBlob->GetBufferPointer(), shaders.vertexShaderBlob->GetBufferSize(), &vertexLayout);
+							if (SUCCEEDED(hr)){
+								context.deviceContext->IASetInputLayout(vertexLayout);
+								context.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+								
+								D3D11_VIEWPORT viewport = {
+									0, 
+									0, 
+									(FLOAT)clientWidth,
+									(FLOAT)clientHeight,
+									0.0f,
+									1.0f,
+								};
+								context.deviceContext->RSSetViewports(1, &viewport);
+								
+								b32 running = true;
+								while (running) {
+									MSG msg;
+									while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE)) {
+										if (msg.message==WM_QUIT) running = false;
+										TranslateMessage(&msg);
+										DispatchMessageA(&msg);
+									}
+									
+									float clearColour[4] = {0.0f, 0.2f, 0.4f, 1.0f};
+									context.deviceContext->ClearRenderTargetView(context.renderTargetView, clearColour);
+									context.deviceContext->Draw(3, 0);
+									context.swapChain->Present(1, 0);
+								}
+							} else {
+								Win32ShowMessageBoxError("Failed to create input layout");
 							}
-							
-							float clearColour[4] = {0.0f, 0.2f, 0.4f, 1.0f};
-							context.deviceContext->ClearRenderTargetView(context.renderTargetView, clearColour);
-							
-							context.swapChain->Present(1, 0);
+						} else {
+							Win32ShowMessageBoxError("Failed to create buffer");
 						}
 					} else {
 						Win32ShowMessageBoxError("Failed to init shaders");
