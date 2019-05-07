@@ -25,7 +25,7 @@ internal void Win32Error(char* customErrorMessage)
 	}
 }
 
-internal void Win32ShowMessageBoxError(char* message)
+internal void Win32ShowErrorBox(char* message)
 {
 	MessageBoxA(0, message, "Error", MB_ICONERROR);
 }
@@ -89,13 +89,13 @@ internal b32 D3DInitContext(d3d_context* context, HWND hwnd, u32 clientWidth, u3
 				context->deviceContext->OMSetRenderTargets(1, &context->renderTargetView, 0);
 				result = true;
 			} else {
-				Win32ShowMessageBoxError("Failed to create render target view");
+				Win32ShowErrorBox("Failed to create render target view");
 			}
 		} else {
-			Win32ShowMessageBoxError("Failed to get buffer");
+			Win32ShowErrorBox("Failed to get buffer");
 		}
 	} else {
-		Win32ShowMessageBoxError("Failed to create Device and swap chain");
+		Win32ShowErrorBox("Failed to create Device and swap chain");
 	}
 	return(result);
 }
@@ -141,10 +141,10 @@ internal b32 D3DInitShaders(d3d_shaders* shaders, ID3D11Device* device, ID3D11De
 				deviceContext->PSSetShader(pixelShader, NULL, 0);
 				result = true;
 			} else {
-				Win32ShowMessageBoxError("Failed to compile pixel shader");
+				Win32ShowErrorBox("Failed to compile pixel shader");
 			}
 		} else {
-			Win32ShowMessageBoxError("Failed to compile vertex shader");
+			Win32ShowErrorBox("Failed to compile vertex shader");
 		}
 	} else {
 		Win32Error("Failed to open shader file");
@@ -196,15 +196,15 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 					if (D3DInitShaders(&shaders, context.device, context.deviceContext)) {
 						HRESULT hr;
 						struct vertex {
-							float pos[2];
+							float pos[4];
 						};
 						
 						ID3D11Buffer* triVertexBuffer;
 						
 						vertex v[] = {
-							{ 0.0f, 0.5f },
-							{ 0.5f, -0.5f },
-							{ -0.5f, -0.5f },
+							{ 0.5f, 0.5f, 0.0f, 1.0f},
+							{ 0.5f, -0.5f, 0.0f, 1.0f },
+							{ -0.5f, -0.5f, 0.0f, 1.0f },
 						};
 						
 						D3D11_BUFFER_DESC vertexBufferDesc = {
@@ -252,14 +252,19 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 								
 								ID3D11Buffer* constantBuffer;
 								struct vs_constant_buffer {
-									float offset[2];
+									float aspectRatioMatrix[4*4];
 								};
 								
-								vs_constant_buffer constantBufferData = { 0.4f, 0.4f };
+								vs_constant_buffer constantBufferData = { 
+									(float)clientHeight / (float) clientWidth, 0.0f, 0.0f, 0.0f,
+									0.0f, 1.0f, 0.0f, 0.0f,
+									0.0f, 0.0f, 1.0f, 0.0f,
+									0.0f, 0.0f, 0.0f, 1.0f,
+								};
 								D3D11_BUFFER_DESC constantBufferDesc = {};
 								constantBufferDesc.ByteWidth = sizeof(vs_constant_buffer);
 								constantBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-								constantBufferDesc.BindFlags = 0;
+								constantBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 								constantBufferDesc.CPUAccessFlags = 0;
 								constantBufferDesc.MiscFlags = 0;
 								constantBufferDesc.StructureByteStride = 0;
@@ -285,19 +290,19 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 										context.swapChain->Present(1, 0);
 									}
 								} else {
-									Win32ShowMessageBoxError("Failed to create constant buffer");
+									Win32ShowErrorBox("Failed to create constant buffer");
 								}
 							} else {
-								Win32ShowMessageBoxError("Failed to create input layout");
+								Win32ShowErrorBox("Failed to create input layout");
 							}
 						} else {
-							Win32ShowMessageBoxError("Failed to create buffer");
+							Win32ShowErrorBox("Failed to create buffer");
 						}
 					} else {
-						Win32ShowMessageBoxError("Failed to init shaders");
+						Win32ShowErrorBox("Failed to init shaders");
 					}
 				} else {
-					Win32ShowMessageBoxError("Failed to init d3d context");
+					Win32ShowErrorBox("Failed to init d3d context");
 				}
 			} else {
 				Win32Error("Failed to get client rect");

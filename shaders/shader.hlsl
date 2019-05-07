@@ -1,11 +1,12 @@
 cbuffer vs_constant_buffer
 {
-	float2 offset;
+	float4x4 aspectRatioMatrix;
 };
 
-float4 VS(float2 inPos : POSITION) : SV_POSITION 
+float4 VS(float4 inPos : POSITION) : SV_POSITION 
 {
-	return float4(inPos+offset, 0.0f, 1.0f);
+	float4 p = mul(inPos, aspectRatioMatrix);
+	return p;
 }
 
 float4 PS() : SV_TARGET 
