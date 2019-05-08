@@ -196,15 +196,15 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 					if (D3DInitShaders(&shaders, context.device, context.deviceContext)) {
 						HRESULT hr;
 						struct vertex {
-							float pos[4];
+							float pos[2];
 						};
 						
 						ID3D11Buffer* triVertexBuffer;
 						
 						vertex v[] = {
-							{ 0.5f, 0.5f, 0.0f, 1.0f},
-							{ 0.5f, -0.5f, 0.0f, 1.0f },
-							{ -0.5f, -0.5f, 0.0f, 1.0f },
+							{ 0.5f, 0.5f },
+							{ 0.5f, -0.5f },
+							{ -0.5f, -0.5f },
 						};
 						
 						D3D11_BUFFER_DESC vertexBufferDesc = {
