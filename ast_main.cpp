@@ -252,25 +252,23 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 								
 								ID3D11Buffer* constantBuffer;
 								struct vs_constant_buffer {
-									float aspectRatioMatrix[4*4];
+									float ar;
 								};
 								
-								vs_constant_buffer constantBufferData = { 
-									(float)clientHeight / (float) clientWidth, 0.0f, 0.0f, 0.0f,
-									0.0f, 1.0f, 0.0f, 0.0f,
-									0.0f, 0.0f, 1.0f, 0.0f,
-									0.0f, 0.0f, 0.0f, 1.0f,
-								};
+								vs_constant_buffer constantBufferData = {} ;
+								constantBufferData.ar = (float)clientHeight / (float) clientWidth;
+								
 								D3D11_BUFFER_DESC constantBufferDesc = {};
 								constantBufferDesc.ByteWidth = sizeof(vs_constant_buffer);
 								constantBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-								constantBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+								constantBufferDesc.BindFlags = 0;
 								constantBufferDesc.CPUAccessFlags = 0;
 								constantBufferDesc.MiscFlags = 0;
 								constantBufferDesc.StructureByteStride = 0;
 								hr = context.device->CreateBuffer(&constantBufferDesc, NULL, &constantBuffer);
 								if (SUCCEEDED(hr)) {
-									
+									context.deviceContext->UpdateSubresource(constantBuffer, 0, NULL, &constantBufferData, 0, 0);
+									context.deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
 									b32 running = true;
 									while (running) {
 										MSG msg;
@@ -281,9 +279,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 										}
 										float clearColour[4] = {0.0f, 0.2f, 0.4f, 1.0f};
 										context.deviceContext->ClearRenderTargetView(context.renderTargetView, clearColour);
-										
-										context.deviceContext->UpdateSubresource(constantBuffer, 0, NULL, &constantBufferData, 0, 0);
-										context.deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
 										
 										context.deviceContext->Draw(3, 0);
 										

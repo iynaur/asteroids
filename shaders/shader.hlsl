@@ -1,10 +1,16 @@
 cbuffer vs_constant_buffer
 {
-	float4x4 aspectRatioMatrix;
+	float ar;
 };
 
 float4 VS(float4 inPos : POSITION) : SV_POSITION 
 {
+	float4x4 aspectRatioMatrix = {
+		ar, 0.0f, 0.0f, 0.0f, 
+		0.0f, 1.0f, 0.0f, 0.0f, 
+		0.0f, 0.0f, 1.0f, 0.0f, 
+		0.0f, 0.0f, 0.0f, 1.0f, 
+	};
 	float4 p = mul(inPos, aspectRatioMatrix);
 	return p;
 }
