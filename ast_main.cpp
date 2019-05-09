@@ -9,8 +9,28 @@
 #include <windows.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
+#include <math.h>
 #pragma warning(pop)
 #include "common_types.h"
+
+inline __int64 GetTicks(void)
+{
+	LARGE_INTEGER time;
+	QueryPerformanceCounter(&time);
+	return(time.QuadPart);
+}
+
+inline __int64 GetFreq(void)
+{
+	LARGE_INTEGER time;
+	QueryPerformanceFrequency(&time);
+	return(time.QuadPart);
+}
+
+inline float GetTime(void)
+{
+	return((float)GetTicks() / (float)GetFreq());
+}
 
 internal void Win32Error(char* customErrorMessage)
 {
@@ -202,9 +222,10 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 						ID3D11Buffer* triVertexBuffer;
 						
 						vertex v[] = {
-							{ 0.5f, 0.5f },
-							{ 0.5f, -0.5f },
-							{ -0.5f, -0.5f },
+							{ -0.75f, -1.0f },
+							{ 0.0f, 1.0f },
+							{ 0.0f, -0.75f },
+							{ 0.75f, -1.0f },
 						};
 						
 						D3D11_BUFFER_DESC vertexBufferDesc = {
@@ -238,7 +259,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 							hr = context.device->CreateInputLayout(&layout, 1, shaders.vertexShaderBlob->GetBufferPointer(), shaders.vertexShaderBlob->GetBufferSize(), &vertexLayout);
 							if (SUCCEEDED(hr)){
 								context.deviceContext->IASetInputLayout(vertexLayout);
-								context.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+								context.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 								
 								D3D11_VIEWPORT viewport = {
 									0, 
@@ -253,10 +274,12 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 								ID3D11Buffer* constantBuffer;
 								struct vs_constant_buffer {
 									float ar;
+									float scale;
 								};
 								
 								vs_constant_buffer constantBufferData = {} ;
 								constantBufferData.ar = (float)clientHeight / (float) clientWidth;
+								constantBufferData.scale = 25.0f;
 								
 								D3D11_BUFFER_DESC constantBufferDesc = {};
 								constantBufferDesc.ByteWidth = sizeof(vs_constant_buffer);
@@ -267,8 +290,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 								constantBufferDesc.StructureByteStride = 0;
 								hr = context.device->CreateBuffer(&constantBufferDesc, NULL, &constantBuffer);
 								if (SUCCEEDED(hr)) {
-									context.deviceContext->UpdateSubresource(constantBuffer, 0, NULL, &constantBufferData, 0, 0);
-									context.deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
 									b32 running = true;
 									while (running) {
 										MSG msg;
@@ -280,7 +301,13 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 										float clearColour[4] = {0.0f, 0.2f, 0.4f, 1.0f};
 										context.deviceContext->ClearRenderTargetView(context.renderTargetView, clearColour);
 										
-										context.deviceContext->Draw(3, 0);
+										constantBufferData.scale = sinf(GetTime())+ 2.0f;
+										
+										context.deviceContext->UpdateSubresource(constantBuffer, 0, NULL, &constantBufferData, 0, 0);
+										context.deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer);
+										
+										
+										context.deviceContext->Draw(4, 0);
 										
 										context.swapChain->Present(1, 0);
 									}
