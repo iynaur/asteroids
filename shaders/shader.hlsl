@@ -1,13 +1,19 @@
 cbuffer vs_constant_buffer
 {
+	float2 pos;
 	float ar;
 	float scale;
-	float2 pos;
+	float r;
 };
 
 float4 VS(float2 inPos : POSITION) : SV_POSITION 
 {
-	float2 tpos = inPos - pos;
+	float2x2 rotMatrix = {
+		cos(r), -sin(r),
+		sin(r), cos(r)
+	};
+	
+	float2 tpos = mul(inPos, rotMatrix) - pos;
 	float scaleFactor = (1 / scale);
 	float2x2 aspectRatioMatrix = {
 		ar * scaleFactor, 0.0f, 

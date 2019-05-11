@@ -31,12 +31,6 @@ struct d3d_context {
 };
 #pragma pack(pop)
 
-internal void UpdateConstBuffers(d3d_context context, ID3D11Buffer** constantBuffer, void* constantBufferData)
-{
-	context.deviceContext->UpdateSubresource(*constantBuffer, 0, NULL, constantBufferData, 0, 0);
-	context.deviceContext->VSSetConstantBuffers(0, 1, constantBuffer);
-}
-
 internal b32 D3DInitContext(d3d_context* context, HWND hwnd, u32 clientWidth, u32 clientHeight)
 {
 	b32 result = false;
@@ -127,9 +121,10 @@ internal b32 D3DInitShaders(d3d_shaders* shaders, ID3D11Device* device, ID3D11De
 		DWORD readBytes = 0;
 		ReadFile(fileHandle, shaderCode, size, &readBytes, NULL);
 		//TODO: error msgs
-		HRESULT hr = D3DCompile(shaderCode, size, NULL, NULL, NULL,"VS", "vs_5_0", NULL, NULL, &shaders->vertexShaderBlob, NULL);
+		ID3DBlob* errorMsg;
+		HRESULT hr = D3DCompile(shaderCode, size, NULL, NULL, NULL,"VS", "vs_5_0", D3DCOMPILE_DEBUG, NULL, &shaders->vertexShaderBlob, &errorMsg);
 		if (SUCCEEDED(hr)) {
-			hr = D3DCompile(shaderCode, size, NULL, NULL, NULL,"PS", "ps_5_0", NULL, NULL, &pixelShaderBlob, NULL);
+			hr = D3DCompile(shaderCode, size, NULL, NULL, NULL,"PS", "ps_5_0", D3DCOMPILE_DEBUG, NULL, &pixelShaderBlob, &errorMsg);
 			if (SUCCEEDED(hr)) {
 				device->CreateVertexShader(shaders->vertexShaderBlob->GetBufferPointer(), shaders->vertexShaderBlob->GetBufferSize(), NULL, &vertexShader);
 				device->CreatePixelShader(pixelShaderBlob->GetBufferPointer(), pixelShaderBlob->GetBufferSize(), NULL, &pixelShader);
@@ -138,9 +133,11 @@ internal b32 D3DInitShaders(d3d_shaders* shaders, ID3D11Device* device, ID3D11De
 				result = true;
 			} else {
 				Win32ShowErrorBox("Failed to compile pixel shader");
+				Win32ShowErrorBox((char*)errorMsg->GetBufferPointer());
 			}
 		} else {
 			Win32ShowErrorBox("Failed to compile vertex shader");
+			Win32ShowErrorBox((char*)errorMsg->GetBufferPointer());
 		}
 	} else {
 		Win32Error("Failed to open shader file");
@@ -148,14 +145,30 @@ internal b32 D3DInitShaders(d3d_shaders* shaders, ID3D11Device* device, ID3D11De
 	return(result);
 }
 
+/* NOTE : 11 May 2019
+  : 'd3d_buffers': '4' bytes padding added after data member 'd3d_buffers::constantBufferData' : 
+		
+....struct d3d_buffers {
+........ID3D11Buffer* constantBuffer;
+........struct vs_constant_buffer {
+............vec2 pos;
+............float ar;
+............float scale;
+............float r;
+........} constantBufferData;
+....};
+*/
+#pragma warning(disable : 4820)
 struct d3d_buffers {
 	ID3D11Buffer* constantBuffer;
 	struct vs_constant_buffer {
+		vec2 pos;
 		float ar;
 		float scale;
-		vec2 pos;
+		float r;
 	} constantBufferData;
 };
+#pragma warning(default : 4820)
 
 internal b32 D3DInitBuffers(d3d_buffers* buffers, d3d_context context, d3d_shaders shaders, rect clientDimensions)
 {
@@ -217,6 +230,7 @@ internal b32 D3DInitBuffers(d3d_buffers* buffers, d3d_context context, d3d_shade
 			buffers->constantBufferData.ar = clientDimensions.height / clientDimensions.width;
 			buffers->constantBufferData.scale = 25.0f;
 			buffers->constantBufferData.pos = { 0.0f, 0.0f };
+			buffers->constantBufferData.r = 0.0f;
 			
 			D3D11_BUFFER_DESC constantBufferDesc = {};
 			constantBufferDesc.ByteWidth = sizeof(buffers->constantBufferData);

@@ -4,6 +4,7 @@
 - Offline shader compilation
 - HLSL error checking
 - Allow different resolutions
+- Texture rendering
 */
 
 #pragma warning(push, 0)
@@ -14,9 +15,27 @@
 #include "common_types.h"
 #include "win32_d3d.cpp"
 
-internal void Update(void)
+
+struct game_state {
+	vec2 playerPos;
+	float playerRot;
+};
+internal game_state Update(void)
 {
+	game_state result;
+	vec2 pos = {10.0f, 10.0f};
+	persist float r = 0.0f;
+	r += 0.1f;
 	
+	result.playerPos = pos;
+	result.playerRot = r;
+	return(result);
+}
+
+internal void UpdateConstBuffers(d3d_context context, ID3D11Buffer** constantBuffer, void* constantBufferData)
+{
+	context.deviceContext->UpdateSubresource(*constantBuffer, 0, NULL, constantBufferData, 0, 0);
+	context.deviceContext->VSSetConstantBuffers(0, 1, constantBuffer);
 }
 
 internal LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -49,8 +68,10 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 			}
 			float clearColour[4] = {0.0f, 0.2f, 0.4f, 1.0f};
 			program.context.deviceContext->ClearRenderTargetView(program.context.renderTargetView, clearColour);
-			
-			Update();
+			game_state gameState = {};
+			gameState = Update();
+			program.buffers.constantBufferData.pos = gameState.playerPos;
+			program.buffers.constantBufferData.r = gameState.playerRot;
 			UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
 			
 			program.context.deviceContext->Draw(4, 0);
