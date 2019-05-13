@@ -15,17 +15,39 @@
 #include "common_types.h"
 #include "win32_d3d.cpp"
 
+struct program_state {
+	b32 running;
+};
+
+
+struct controller_input {
+	b32 up;
+	b32 down;
+	b32 left;
+	b32 right;
+};
 
 struct game_state {
 	vec2 playerPos;
 	float playerRot;
 };
-internal game_state Update(void)
+
+internal game_state Update(controller_input input)
 {
 	game_state result;
-	vec2 pos = {10.0f, 10.0f};
+	persist vec2 pos = {10.0f, 10.0f};
 	persist float r = 0.0f;
-	r += 0.1f;
+	if (input.up && !input.down) {
+		pos.y -= 0.1f;
+	} else if (!input.up && input.down) {
+		pos.y += 0.1f;
+	}
+	
+	if (input.right && !input.left) {
+		pos.x -= 0.1f;
+	} else if (!input.right && input.left) {
+		pos.x += 0.1f;
+	}
 	
 	result.playerPos = pos;
 	result.playerRot = r;
@@ -36,6 +58,39 @@ internal void UpdateConstBuffers(d3d_context context, ID3D11Buffer** constantBuf
 {
 	context.deviceContext->UpdateSubresource(*constantBuffer, 0, NULL, constantBufferData, 0, 0);
 	context.deviceContext->VSSetConstantBuffers(0, 1, constantBuffer);
+}
+
+internal void Win32GetControllerInput(controller_input* input, program_state* programState)
+{
+	MSG msg;
+	while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE)) {
+		switch(msg.message) {
+			case WM_QUIT: {
+				programState->running = false;
+			} break;
+			case WM_KEYUP:
+			case WM_KEYDOWN: {
+				switch(msg.wParam) {
+					case VK_UP: {
+						input->up = (b32)(msg.message==WM_KEYDOWN);
+					} break;
+					case VK_DOWN: {
+						input->down = (b32)(msg.message==WM_KEYDOWN);
+					} break;
+					case VK_LEFT: {
+						input->left = (b32)(msg.message==WM_KEYDOWN);
+					} break;
+					case VK_RIGHT: {
+						input->right = (b32)(msg.message==WM_KEYDOWN);
+					} break;
+				}
+			} break;
+			default: {
+				TranslateMessage(&msg);
+				DispatchMessageA(&msg);
+			} break;
+		}
+	}
 }
 
 internal LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -58,18 +113,15 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 {
 	win32_d3d_program program;
 	if (Win32D3DInitEverything(&program, MainWindowProc)) {
-		b32 running = true;
-		while (running) {
-			MSG msg;
-			while (PeekMessageA(&msg, 0, 0, 0, PM_REMOVE)) {
-				if (msg.message==WM_QUIT) running = false;
-				TranslateMessage(&msg);
-				DispatchMessageA(&msg);
-			}
+		program_state programState = { true };
+		controller_input controllerInput = {};
+		while (programState.running) {
+			Win32GetControllerInput(&controllerInput, &programState);
+			
 			float clearColour[4] = {0.0f, 0.2f, 0.4f, 1.0f};
 			program.context.deviceContext->ClearRenderTargetView(program.context.renderTargetView, clearColour);
 			game_state gameState = {};
-			gameState = Update();
+			gameState = Update(controllerInput);
 			program.buffers.constantBufferData.pos = gameState.playerPos;
 			program.buffers.constantBufferData.r = gameState.playerRot;
 			UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
