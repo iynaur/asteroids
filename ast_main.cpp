@@ -11,8 +11,10 @@
 #include <windows.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
+#include <math.h>
 #pragma warning(pop)
 #include "common_types.h"
+#include "common_maths.h"
 #include "win32_d3d.cpp"
 
 struct program_state {
@@ -30,27 +32,27 @@ struct controller_input {
 struct game_state {
 	vec2 playerPos;
 	float playerRot;
+	float scale;
 };
 
 internal game_state Update(controller_input input)
 {
 	game_state result;
-	persist vec2 pos = {10.0f, 10.0f};
-	persist float r = 0.0f;
-	if (input.up && !input.down) {
-		pos.y -= 0.1f;
-	} else if (!input.up && input.down) {
-		pos.y += 0.1f;
-	}
+	persist game_state newState = { 0, 0, 0, 25 };
 	
 	if (input.right && !input.left) {
-		pos.x -= 0.1f;
+		newState.playerRot += 0.1f;
 	} else if (!input.right && input.left) {
-		pos.x += 0.1f;
+		newState.playerRot -= 0.1f;
 	}
 	
-	result.playerPos = pos;
-	result.playerRot = r;
+	if (input.up && !input.down) {
+		newState.playerPos = MoveAtAngle(newState.playerPos, newState.playerRot, 0.5f);
+	}
+	
+	result.playerPos = newState.playerPos;
+	result.playerRot = newState.playerRot;
+	result.scale = newState.scale;
 	return(result);
 }
 
@@ -112,18 +114,19 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 #pragma warning(pop)
 {
 	win32_d3d_program program;
-	if (Win32D3DInitEverything(&program, MainWindowProc)) {
+	if (Win32D3DInitEverything(&program, MainWindowProc, 1280, 720)) {
 		program_state programState = { true };
 		controller_input controllerInput = {};
+		game_state gameState = { 0.0f, 0.0f, 0.0f, 10.0f};
 		while (programState.running) {
 			Win32GetControllerInput(&controllerInput, &programState);
 			
 			float clearColour[4] = {0.0f, 0.2f, 0.4f, 1.0f};
 			program.context.deviceContext->ClearRenderTargetView(program.context.renderTargetView, clearColour);
-			game_state gameState = {};
 			gameState = Update(controllerInput);
 			program.buffers.constantBufferData.pos = gameState.playerPos;
 			program.buffers.constantBufferData.r = gameState.playerRot;
+			program.buffers.constantBufferData.scale = gameState.scale;
 			UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
 			
 			program.context.deviceContext->Draw(4, 0);

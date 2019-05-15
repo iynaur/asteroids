@@ -261,7 +261,7 @@ struct win32_d3d_program {
 };
 
 //TODO: allow passing of program settings such as resolution
-internal b32 Win32D3DInitEverything(win32_d3d_program* program, WNDPROC proc)
+internal b32 Win32D3DInitEverything(win32_d3d_program* program, WNDPROC proc, int windowWidth, int windowHeight)
 {
 	b32 result = false;
 	WNDCLASSA wc = {};
@@ -277,7 +277,9 @@ internal b32 Win32D3DInitEverything(win32_d3d_program* program, WNDPROC proc)
 	wc.lpszClassName = "WindowClass";
 	if (RegisterClass(&wc)) {
 		DWORD style = WS_VISIBLE | WS_OVERLAPPEDWINDOW;
-		HWND hwnd = CreateWindowA(wc.lpszClassName, "Asteroids", style, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, wc.hInstance, 0);
+		RECT adjustRect = { 0, 0, windowWidth, windowHeight };
+		AdjustWindowRect(&adjustRect, style, FALSE);
+		HWND hwnd = CreateWindowA(wc.lpszClassName, "Asteroids", style, CW_USEDEFAULT, CW_USEDEFAULT, adjustRect.right - adjustRect.left, adjustRect.bottom - adjustRect.top, 0, 0, wc.hInstance, 0);
 		if (hwnd) {
 			RECT r;
 			if (GetClientRect(hwnd, &r)) {
