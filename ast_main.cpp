@@ -4,6 +4,8 @@
 - Offline shader compilation
 - Texture rendering?
 - Conservation of momentum
+- Fix bug with speed burst when key goes up
+- Implement drag
 */
 
 #pragma warning(push, 0)
@@ -64,13 +66,9 @@ internal game_state Update(controller_input input)
 		thrusting = true;
 		force = force + aimVector*accelRate;
 	} else {
-		if (thrusting) {
-			prevForce = force;
-			force = {0.0f, 0.0f};
-		}
 		thrusting = false;
 	}
-	movingVector = force + prevForce;
+	movingVector = force;
 	
 	vec2 finalVec = movingVector;
 	newState.playerPos = newState.playerPos - finalVec;
