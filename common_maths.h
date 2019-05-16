@@ -37,16 +37,71 @@ inline vec2 operator-(vec2 a, vec2 b)
 	return(result);
 }
 
+inline vec2 operator+(vec2 a, float b)
+{
+	vec2 result;
+	result.x = a.x + b;
+	result.y = a.y + b;
+	return(result);
+}
+
+inline vec2 operator+(vec2 a, vec2 b)
+{
+	vec2 result;
+	result.x = a.x + b.x;
+	result.y = a.y + b.y;
+	return(result);
+}
+
+inline vec2 operator/(vec2 a, float b)
+{
+	vec2 result;
+	result.x = a.x / b;
+	result.y = a.y / b;
+	return(result);
+}
+
 internal vec2 RadianToVectorSlow(float r)
 {
 	vec2 result = {cosf(PI_OVER_TWO-r), sinf(PI_OVER_TWO-r)};
 	return(result);
 }
 
+internal float V2Mag(vec2 a)
+{
+	float result;
+	result = sqrtf((a.x*a.x) + (a.y*a.y));
+	return(result);
+}
+
+internal vec2 V2Normalise(vec2 a)
+{
+	vec2 result = {};
+	if (a.x && a.y) {
+		result = a / V2Mag(a);
+	}
+	return(result);
+}
+
 internal vec2 MoveAtAngle(vec2 pos, float rot, float speed)
 {
-	vec2 r = RadianToVectorSlow(rot);
-	vec2 result = pos - (r * speed);
+	vec2 result = pos - (RadianToVectorSlow(rot) * speed);
+	return(result);
+}
+
+inline float fClamp(float val, float lower, float upper)
+{
+	float result = val;
+	if (val > upper) result = upper;
+	else if (val < lower) result = lower;
+	return(result);
+}
+
+inline vec2 RadToVec2(float r)
+{
+	vec2 result;
+	result.x = cosf(PI_OVER_TWO - r);
+	result.y = sinf(PI_OVER_TWO - r);
 	return(result);
 }
 

@@ -2,9 +2,8 @@
 ---------------- TODO LIST ----------------
 - Fullscreen mode + switching with atl+enter
 - Offline shader compilation
-- HLSL error checking
-- Allow different resolutions
-- Texture rendering
+- Texture rendering?
+- Conservation of momentum
 */
 
 #pragma warning(push, 0)
@@ -21,12 +20,17 @@ struct program_state {
 	b32 running;
 };
 
-
+#define ACTIVE_KEYS 4
 struct controller_input {
-	b32 up;
-	b32 down;
-	b32 left;
-	b32 right;
+	union {
+		b32 keys[ACTIVE_KEYS];
+		struct {
+			b32 left;
+			b32 up;
+			b32 right;
+			b32 down;
+		};
+	};
 };
 
 struct game_state {
@@ -39,6 +43,11 @@ internal game_state Update(controller_input input)
 {
 	game_state result;
 	persist game_state newState = { 0, 0, 0, 25 };
+	persist vec2 thrustVector;
+	persist float thrust;
+	persist float accelRate = 0.01f;
+	persist float decelRate = 0.005f;
+	persist float newPlayerRot = newState.playerRot;
 	
 	if (input.right && !input.left) {
 		newState.playerRot += 0.1f;
@@ -47,8 +56,14 @@ internal game_state Update(controller_input input)
 	}
 	
 	if (input.up && !input.down) {
-		newState.playerPos = MoveAtAngle(newState.playerPos, newState.playerRot, 0.5f);
+		newPlayerRot = newState.playerRot;
+		thrustVector = RadToVec2(newPlayerRot);
+		thrust = fClamp(thrust + accelRate, 0.0f, 0.5f);
+	} else {
+		thrust = fClamp(thrust - decelRate, 0.0f, 0.5f);
 	}
+	//newState.playerPos = MoveAtAngle(newState.playerPos, newPlayerRot, thrust);
+	newState.playerPos = newState.playerPos - (V2Normalise(thrustVector) * thrust);
 	
 	result.playerPos = newState.playerPos;
 	result.playerRot = newState.playerRot;
@@ -72,19 +87,9 @@ internal void Win32GetControllerInput(controller_input* input, program_state* pr
 			} break;
 			case WM_KEYUP:
 			case WM_KEYDOWN: {
-				switch(msg.wParam) {
-					case VK_UP: {
-						input->up = (b32)(msg.message==WM_KEYDOWN);
-					} break;
-					case VK_DOWN: {
-						input->down = (b32)(msg.message==WM_KEYDOWN);
-					} break;
-					case VK_LEFT: {
-						input->left = (b32)(msg.message==WM_KEYDOWN);
-					} break;
-					case VK_RIGHT: {
-						input->right = (b32)(msg.message==WM_KEYDOWN);
-					} break;
+				WPARAM i = msg.wParam - VK_LEFT;
+				if (i < ACTIVE_KEYS) {
+					input->keys[i] = (b32)(msg.message==WM_KEYDOWN);
 				}
 			} break;
 			default: {
