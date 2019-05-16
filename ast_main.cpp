@@ -43,27 +43,51 @@ internal game_state Update(controller_input input)
 {
 	game_state result;
 	persist game_state newState = { 0, 0, 0, 25 };
-	persist vec2 thrustVector;
-	persist float thrust;
+	
+	persist vec2 force;
+	persist vec2 prevForce;
+	
+	persist vec2 aimVector;
+	persist b32 thrusting;
 	persist float accelRate = 0.01f;
 	persist float decelRate = 0.005f;
-	persist float newPlayerRot = newState.playerRot;
+	persist vec2 movingVector;
 	
 	if (input.right && !input.left) {
 		newState.playerRot += 0.1f;
 	} else if (!input.right && input.left) {
 		newState.playerRot -= 0.1f;
 	}
+	aimVector = V2Normalise(RadToVec2(newState.playerRot));
 	
 	if (input.up && !input.down) {
-		newPlayerRot = newState.playerRot;
-		thrustVector = RadToVec2(newPlayerRot);
-		thrust = fClamp(thrust + accelRate, 0.0f, 0.5f);
+		thrusting = true;
+		force = force + aimVector*accelRate;
 	} else {
-		thrust = fClamp(thrust - decelRate, 0.0f, 0.5f);
+		if (thrusting) {
+			prevForce = force;
+			force = {0.0f, 0.0f};
+		}
+		thrusting = false;
 	}
-	//newState.playerPos = MoveAtAngle(newState.playerPos, newPlayerRot, thrust);
-	newState.playerPos = newState.playerPos - (V2Normalise(thrustVector) * thrust);
+	movingVector = force + prevForce;
+	
+	vec2 finalVec = movingVector;
+	newState.playerPos = newState.playerPos - finalVec;
+	
+	if (newState.playerPos.x > (1.0f * newState.scale*16.0f/9.0f)) {
+		newState.playerPos.x = -1.0f * newState.scale *16.0f/9.0f;
+	}
+	if (newState.playerPos.x < (-1.0f * newState.scale*16.0f/9.0f)) {
+		newState.playerPos.x = 1.0f * newState.scale *16.0f/9.0f;
+	}
+	
+	if (newState.playerPos.y > (1.0f * newState.scale)) {
+		newState.playerPos.y = -1.0f * newState.scale;
+	}
+	if (newState.playerPos.y < (-1.0f * newState.scale)) {
+		newState.playerPos.y = 1.0f * newState.scale;
+	}
 	
 	result.playerPos = newState.playerPos;
 	result.playerRot = newState.playerRot;
