@@ -6,6 +6,8 @@
 - Conservation of momentum
 - Fix bug with speed burst when key goes up
 - Implement drag
+- Clean up TODOs
+- Move camera with ship, require background elements
 */
 
 #pragma warning(push, 0)
@@ -46,32 +48,19 @@ internal game_state Update(controller_input input)
 	game_state result;
 	persist game_state newState = { 0, 0, 0, 25 };
 	
-	persist vec2 force;
-	persist vec2 prevForce;
-	
-	persist vec2 aimVector;
-	persist b32 thrusting;
-	persist float accelRate = 0.01f;
-	persist float decelRate = 0.005f;
-	persist vec2 movingVector;
-	
 	if (input.right && !input.left) {
 		newState.playerRot += 0.1f;
 	} else if (!input.right && input.left) {
 		newState.playerRot -= 0.1f;
 	}
-	aimVector = V2Normalise(RadToVec2(newState.playerRot));
+	vec2 aimVector = V2Normalise(RadToVec2(newState.playerRot));
 	
-	if (input.up && !input.down) {
-		thrusting = true;
-		force = force + aimVector*accelRate;
-	} else {
-		thrusting = false;
+	persist vec2 velocity;
+	float accelRate = 0.01f;
+	if (input.up) {
+		velocity = (aimVector*accelRate) + velocity;
 	}
-	movingVector = force;
-	
-	vec2 finalVec = movingVector;
-	newState.playerPos = newState.playerPos - finalVec;
+	newState.playerPos = newState.playerPos - velocity;
 	
 	if (newState.playerPos.x > (1.0f * newState.scale*16.0f/9.0f)) {
 		newState.playerPos.x = -1.0f * newState.scale *16.0f/9.0f;
@@ -156,6 +145,17 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 			program.buffers.constantBufferData.scale = gameState.scale;
 			UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
 			
+			UINT stride = sizeof(vec2);
+			UINT offset = 0;
+			program.context.deviceContext->IASetVertexBuffers(0, 1, &program.buffers.buffer[0].buffer, &stride, &offset);
+			program.context.deviceContext->Draw(4, 0);
+			
+			vec2 p = {0.0f, 0.0f};
+			program.buffers.constantBufferData.pos = p;
+			program.buffers.constantBufferData.r = 0.0f;
+			UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
+			
+			program.context.deviceContext->IASetVertexBuffers(0, 1, &program.buffers.buffer[1].buffer, &stride, &offset);
 			program.context.deviceContext->Draw(4, 0);
 			
 			program.context.swapChain->Present(1, 0);

@@ -145,21 +145,14 @@ internal b32 D3DInitShaders(d3d_shaders* shaders, ID3D11Device* device, ID3D11De
 	return(result);
 }
 
-/* NOTE : 11 May 2019
-  : 'd3d_buffers': '4' bytes padding added after data member 'd3d_buffers::constantBufferData' : 
-		
-....struct d3d_buffers {
-........ID3D11Buffer* constantBuffer;
-........struct vs_constant_buffer {
-............vec2 pos;
-............float ar;
-............float scale;
-............float r;
-........} constantBufferData;
-....};
-*/
-#pragma warning(disable : 4820)
+struct d3d_buffer {
+	ID3D11Buffer* buffer;
+	D3D11_BUFFER_DESC bufferDesc;
+	D3D11_SUBRESOURCE_DATA bufferData;
+};
+
 struct d3d_buffers {
+	d3d_buffer buffer[2];
 	ID3D11Buffer* constantBuffer;
 	struct vs_constant_buffer {
 		vec2 pos;
@@ -168,14 +161,10 @@ struct d3d_buffers {
 		float r;
 	} constantBufferData;
 };
-#pragma warning(default : 4820)
 
-internal b32 D3DInitBuffers(d3d_buffers* buffers, d3d_context context, d3d_shaders shaders, rect clientDimensions)
+internal b32 D3DInitBuffer(d3d_buffer* buffer, d3d_context context)
 {
 	b32 result = false;
-	HRESULT hr;
-	
-	ID3D11Buffer* triVertexBuffer;
 	
 	vec2 v[] = {
 		{ -0.75f, -1.0f },
@@ -184,72 +173,97 @@ internal b32 D3DInitBuffers(d3d_buffers* buffers, d3d_context context, d3d_shade
 		{ 0.75f, -1.0f },
 	};
 	
-	D3D11_BUFFER_DESC vertexBufferDesc = {
-		sizeof(v),
-		D3D11_USAGE_DEFAULT,
-		D3D11_BIND_VERTEX_BUFFER,
-		0,
-		0,
-		0
-	};
-	D3D11_SUBRESOURCE_DATA vertexBufferData = {
-		v,
-		0,
-		0
-	};
-	hr = context.device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &triVertexBuffer); 
+	HRESULT hr = context.device->CreateBuffer(&buffer->bufferDesc, &buffer->bufferData, &buffer->buffer); 
 	if (SUCCEEDED(hr)) {
-		UINT stride = sizeof(vec2);
-		UINT offset = 0;
-		context.deviceContext->IASetVertexBuffers(0, 1, &triVertexBuffer, &stride, &offset);
-		ID3D11InputLayout* vertexLayout;
-		D3D11_INPUT_ELEMENT_DESC layout = {
-			"POSITION",
-			0,
-			DXGI_FORMAT_R32G32_FLOAT,
-			0,
-			0,
-			D3D11_INPUT_PER_VERTEX_DATA,
-			0
-		};
-		hr = context.device->CreateInputLayout(&layout, 1, shaders.vertexShaderBlob->GetBufferPointer(), shaders.vertexShaderBlob->GetBufferSize(), &vertexLayout);
-		if (SUCCEEDED(hr)){
-			context.deviceContext->IASetInputLayout(vertexLayout);
-			context.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-			
-			D3D11_VIEWPORT viewport = {
-				0, 
-				0, 
-				clientDimensions.width,
-				clientDimensions.height,
-				0.0f,
-				1.0f,
-			};
-			context.deviceContext->RSSetViewports(1, &viewport);
-			
-			buffers->constantBufferData.ar = clientDimensions.height / clientDimensions.width;
-			buffers->constantBufferData.scale = 25.0f;
-			buffers->constantBufferData.pos = { 0.0f, 0.0f };
-			buffers->constantBufferData.r = 0.0f;
-			
-			D3D11_BUFFER_DESC constantBufferDesc = {};
-			constantBufferDesc.ByteWidth = sizeof(buffers->constantBufferData);
-			constantBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-			constantBufferDesc.BindFlags = 0;
-			constantBufferDesc.CPUAccessFlags = 0;
-			constantBufferDesc.MiscFlags = 0;
-			constantBufferDesc.StructureByteStride = 0;
-			hr = context.device->CreateBuffer(&constantBufferDesc, NULL, &buffers->constantBuffer);
-			if (SUCCEEDED(hr)) {
-				result = true;
-			} else {
-				Win32ShowErrorBox("Failed to create constant buffer");
-			}
-		} else {
-			Win32ShowErrorBox("Failed to create input layout");
-		}
+		result = true;
 	} else {
 		Win32ShowErrorBox("Failed to create buffer");
+	}
+	return(result);
+}
+
+internal b32 D3DInitBuffers(d3d_buffers* buffers, d3d_context context, d3d_shaders shaders, rect clientDimensions)
+{
+	b32 result = false;
+	HRESULT hr;
+	
+	vec2 v[] = {
+		{ -0.75f, -1.0f },
+		{ 0.0f, 1.0f },
+		{ 0.0f, -0.75f },
+		{ 0.75f, -1.0f },
+	};
+	
+	buffers->buffer[0].bufferDesc = {};
+	buffers->buffer[0].bufferDesc.ByteWidth = sizeof(v);
+	buffers->buffer[0].bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	buffers->buffer[0].bufferData = {v, 0, 0};
+	
+	vec2 v2[] = {
+		{ 0.0f, 1.0f },
+		{ 1.0f, 0.8f },
+		{ 0.0f, 0.0f },
+		{ 1.1f, -0.5f },
+	};
+	
+	buffers->buffer[1].bufferDesc = {};
+	buffers->buffer[1].bufferDesc.ByteWidth = sizeof(v2);
+	buffers->buffer[1].bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	buffers->buffer[1].bufferData = {v2, 0, 0};
+	
+	if (D3DInitBuffer(&buffers->buffer[0], context)) {
+		if (D3DInitBuffer(&buffers->buffer[1], context)) {
+			ID3D11InputLayout* vertexLayout;
+			D3D11_INPUT_ELEMENT_DESC layout = {
+				"POSITION",
+				0,
+				DXGI_FORMAT_R32G32_FLOAT,
+				0,
+				0,
+				D3D11_INPUT_PER_VERTEX_DATA,
+				0
+			};
+			hr = context.device->CreateInputLayout(&layout, 1, shaders.vertexShaderBlob->GetBufferPointer(), shaders.vertexShaderBlob->GetBufferSize(), &vertexLayout);
+			if (SUCCEEDED(hr)){
+				context.deviceContext->IASetInputLayout(vertexLayout);
+				context.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+				
+				D3D11_VIEWPORT viewport = {
+					0, 
+					0, 
+					clientDimensions.width,
+					clientDimensions.height,
+					0.0f,
+					1.0f,
+				};
+				context.deviceContext->RSSetViewports(1, &viewport);
+				
+				buffers->constantBufferData.ar = clientDimensions.height / clientDimensions.width;
+				buffers->constantBufferData.scale = 25.0f;
+				buffers->constantBufferData.pos = { 0.0f, 0.0f };
+				buffers->constantBufferData.r = 0.0f;
+				
+				D3D11_BUFFER_DESC constantBufferDesc = {};
+				constantBufferDesc.ByteWidth = sizeof(buffers->constantBufferData);
+				constantBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+				constantBufferDesc.BindFlags = 0;
+				constantBufferDesc.CPUAccessFlags = 0;
+				constantBufferDesc.MiscFlags = 0;
+				constantBufferDesc.StructureByteStride = 0;
+				hr = context.device->CreateBuffer(&constantBufferDesc, NULL, &buffers->constantBuffer);
+				if (SUCCEEDED(hr)) {
+					result = true;
+				} else {
+					Win32ShowErrorBox("Failed to create constant buffer");
+				}
+			} else {
+				Win32ShowErrorBox("Failed to create input layout");
+			}
+		} else {
+			Win32ShowErrorBox("Failed to init buffer");
+		}
+	} else {
+		Win32ShowErrorBox("Failed to init buffer");
 	}
 	return(result);
 }
