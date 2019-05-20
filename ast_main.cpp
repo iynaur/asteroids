@@ -8,6 +8,7 @@
 - Implement drag
 - Clean up TODOs
 - Move camera with ship, require background elements
+- Add a matrix which allows meshes to be stretched in width and height
 */
 
 #pragma warning(push, 0)
@@ -140,9 +141,12 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 			float clearColour[4] = {0.0f, 0.2f, 0.4f, 1.0f};
 			program.context.deviceContext->ClearRenderTargetView(program.context.renderTargetView, clearColour);
 			gameState = Update(controllerInput);
+			program.buffers.constantBufferData.localOffset = {};
 			program.buffers.constantBufferData.pos = gameState.playerPos;
 			program.buffers.constantBufferData.r = gameState.playerRot;
 			program.buffers.constantBufferData.scale = gameState.scale;
+			program.buffers.constantBufferData.distort.x = 1.0f;
+			program.buffers.constantBufferData.distort.y = 1.0f;
 			UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
 			
 			UINT stride = sizeof(vec2);
@@ -150,13 +154,14 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 			program.context.deviceContext->IASetVertexBuffers(0, 1, &program.buffers.buffer[0].buffer, &stride, &offset);
 			program.context.deviceContext->Draw(4, 0);
 			
-			vec2 p = {0.0f, 0.0f};
-			program.buffers.constantBufferData.pos = p;
-			program.buffers.constantBufferData.r = 0.0f;
-			UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
-			
-			program.context.deviceContext->IASetVertexBuffers(0, 1, &program.buffers.buffer[1].buffer, &stride, &offset);
-			program.context.deviceContext->Draw(4, 0);
+			if (controllerInput.up) {
+				program.buffers.constantBufferData.distort.width = 1.0f;
+				program.buffers.constantBufferData.distort.height = 1.0f;
+				program.buffers.constantBufferData.localOffset.y = -1.0f;
+				UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
+				program.context.deviceContext->IASetVertexBuffers(0, 1, &program.buffers.buffer[1].buffer, &stride, &offset);
+				program.context.deviceContext->Draw(4, 0);
+			}
 			
 			program.context.swapChain->Present(1, 0);
 		}

@@ -151,27 +151,24 @@ struct d3d_buffer {
 	D3D11_SUBRESOURCE_DATA bufferData;
 };
 
+#pragma pack(push, 4)
 struct d3d_buffers {
-	d3d_buffer buffer[2];
 	ID3D11Buffer* constantBuffer;
+	d3d_buffer buffer[2];
 	struct vs_constant_buffer {
 		vec2 pos;
 		float ar;
 		float scale;
 		float r;
+		vec2 distort;
+		vec2 localOffset;
 	} constantBufferData;
 };
+#pragma pack(pop)
 
 internal b32 D3DInitBuffer(d3d_buffer* buffer, d3d_context context)
 {
 	b32 result = false;
-	
-	vec2 v[] = {
-		{ -0.75f, -1.0f },
-		{ 0.0f, 1.0f },
-		{ 0.0f, -0.75f },
-		{ 0.75f, -1.0f },
-	};
 	
 	HRESULT hr = context.device->CreateBuffer(&buffer->bufferDesc, &buffer->bufferData, &buffer->buffer); 
 	if (SUCCEEDED(hr)) {
@@ -200,10 +197,10 @@ internal b32 D3DInitBuffers(d3d_buffers* buffers, d3d_context context, d3d_shade
 	buffers->buffer[0].bufferData = {v, 0, 0};
 	
 	vec2 v2[] = {
-		{ 0.0f, 1.0f },
-		{ 1.0f, 0.8f },
-		{ 0.0f, 0.0f },
-		{ 1.1f, -0.5f },
+		{ -0.25f, -0.25f },
+		{ 0.0f, -0.0f },
+		{ 0.0f, -1.5f },
+		{ 0.25f, -0.25f },
 	};
 	
 	buffers->buffer[1].bufferDesc = {};
