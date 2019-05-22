@@ -9,6 +9,9 @@
 - Clean up TODOs
 - Move camera with ship, require background elements
 - Add a matrix which allows meshes to be stretched in width and height
+- implement 1D noise instead of rand() for engine trail
+- Implement max speed
+- Implement deceleration
 */
 
 #pragma warning(push, 0)
@@ -46,6 +49,8 @@ struct game_state {
 
 internal game_state Update(controller_input input)
 {
+	float maxVelocity = 1.0f;
+	
 	game_state result;
 	persist game_state newState = { 0, 0, 0, 25 };
 	
@@ -58,8 +63,16 @@ internal game_state Update(controller_input input)
 	
 	persist vec2 velocity;
 	float accelRate = 0.01f;
+	float decelRate = 0.003f;
+	float velocityMag = V2Mag(velocity);
 	if (input.up) {
 		velocity = (aimVector*accelRate) + velocity;
+		if (velocityMag > maxVelocity) {
+			velocity = V2Normalise(velocity) * maxVelocity;
+		}
+	} else {
+		float newMag = fClamp(velocityMag - decelRate, 0.0f, velocityMag);
+		velocity = V2Normalise(velocity) * newMag;
 	}
 	newState.playerPos = newState.playerPos - velocity;
 	
@@ -156,7 +169,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 			
 			if (controllerInput.up) {
 				program.buffers.constantBufferData.distort.width = 1.0f;
-				program.buffers.constantBufferData.distort.height = 1.0f;
+				program.buffers.constantBufferData.distort.height = ((float)(rand() % 256) / 512.0f) + 0.5f;
 				program.buffers.constantBufferData.localOffset.y = -1.0f;
 				UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
 				program.context.deviceContext->IASetVertexBuffers(0, 1, &program.buffers.buffer[1].buffer, &stride, &offset);

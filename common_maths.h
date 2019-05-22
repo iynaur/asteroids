@@ -37,6 +37,14 @@ inline vec2 operator-(vec2 a, vec2 b)
 	return(result);
 }
 
+inline vec2 operator-(vec2 a, float b)
+{
+	vec2 result;
+	result.x = a.x - b;
+	result.y = a.y - b;
+	return(result);
+}
+
 inline vec2 operator+(vec2 a, float b)
 {
 	vec2 result;
