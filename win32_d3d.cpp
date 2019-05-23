@@ -3,6 +3,25 @@
 
 #include "common_types.h"
 
+inline __int64 Win32GetTicks(void)
+{
+	LARGE_INTEGER time;
+	QueryPerformanceCounter(&time);
+	return(time.QuadPart);
+}
+
+inline __int64 Win32GetFreq(void)
+{
+	LARGE_INTEGER time;
+	QueryPerformanceFrequency(&time);
+	return(time.QuadPart);
+}
+
+inline float Win32GetTime(void)
+{
+	return((float)Win32GetTicks() / (float)Win32GetFreq());
+}
+
 internal void Win32Error(char* customErrorMessage)
 {
 	DWORD err =  GetLastError();
@@ -51,7 +70,7 @@ internal b32 D3DInitContext(d3d_context* context, HWND hwnd, u32 clientWidth, u3
 		DXGI_USAGE_RENDER_TARGET_OUTPUT,
 		1,
 		hwnd,
-		TRUE, //TODO: Windowed mode, implement fullscreen
+		TRUE,
 		DXGI_SWAP_EFFECT_DISCARD,
 		DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH
 	};
@@ -60,7 +79,7 @@ internal b32 D3DInitContext(d3d_context* context, HWND hwnd, u32 clientWidth, u3
 		0,
 		D3D_DRIVER_TYPE_HARDWARE,
 		0,
-		D3D11_CREATE_DEVICE_SINGLETHREADED, //TODO: Change if more threads which call d3d are activated
+		D3D11_CREATE_DEVICE_SINGLETHREADED, //NOTE: Change if more threads which call d3d are activated
 		0, //TODO: feature levels
 		0, //NOTE: number of feature levels, change if feature levels are added
 		D3D11_SDK_VERSION,
@@ -113,31 +132,40 @@ internal b32 D3DInitShaders(d3d_shaders* shaders, ID3D11Device* device, ID3D11De
 		NULL
 		);
 	if (fileHandle != INVALID_HANDLE_VALUE) {
-		//TODO: check if all functions succeed here
 		LARGE_INTEGER fileSize;
-		GetFileSizeEx(fileHandle, &fileSize);
-		u64 size = (u64)fileSize.QuadPart;
-		void* shaderCode = VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-		DWORD readBytes = 0;
-		ReadFile(fileHandle, shaderCode, size, &readBytes, NULL);
-		//TODO: error msgs
-		ID3DBlob* errorMsg;
-		HRESULT hr = D3DCompile(shaderCode, size, NULL, NULL, NULL,"VS", "vs_5_0", D3DCOMPILE_DEBUG, NULL, &shaders->vertexShaderBlob, &errorMsg);
-		if (SUCCEEDED(hr)) {
-			hr = D3DCompile(shaderCode, size, NULL, NULL, NULL,"PS", "ps_5_0", D3DCOMPILE_DEBUG, NULL, &pixelShaderBlob, &errorMsg);
-			if (SUCCEEDED(hr)) {
-				device->CreateVertexShader(shaders->vertexShaderBlob->GetBufferPointer(), shaders->vertexShaderBlob->GetBufferSize(), NULL, &vertexShader);
-				device->CreatePixelShader(pixelShaderBlob->GetBufferPointer(), pixelShaderBlob->GetBufferSize(), NULL, &pixelShader);
-				deviceContext->VSSetShader(vertexShader, NULL, 0);
-				deviceContext->PSSetShader(pixelShader, NULL, 0);
-				result = true;
+		if (GetFileSizeEx(fileHandle, &fileSize)) {
+			u64 size = (u64)fileSize.QuadPart;
+			void* shaderCode = VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE); //TODO: Load into memory pool
+			if (shaderCode != NULL) {
+				
+				DWORD readBytes = 0;
+				if (ReadFile(fileHandle, shaderCode, size, &readBytes, NULL)) {
+					ID3DBlob* errorMsg;
+					HRESULT hr = D3DCompile(shaderCode, size, NULL, NULL, NULL,"VS", "vs_5_0", D3DCOMPILE_DEBUG, NULL, &shaders->vertexShaderBlob, &errorMsg);
+					if (SUCCEEDED(hr)) {
+						hr = D3DCompile(shaderCode, size, NULL, NULL, NULL,"PS", "ps_5_0", D3DCOMPILE_DEBUG, NULL, &pixelShaderBlob, &errorMsg);
+						if (SUCCEEDED(hr)) {
+							device->CreateVertexShader(shaders->vertexShaderBlob->GetBufferPointer(), shaders->vertexShaderBlob->GetBufferSize(), NULL, &vertexShader);
+							device->CreatePixelShader(pixelShaderBlob->GetBufferPointer(), pixelShaderBlob->GetBufferSize(), NULL, &pixelShader);
+							deviceContext->VSSetShader(vertexShader, NULL, 0);
+							deviceContext->PSSetShader(pixelShader, NULL, 0);
+							result = true;
+						} else {
+							Win32ShowErrorBox("Failed to compile pixel shader");
+							Win32ShowErrorBox((char*)errorMsg->GetBufferPointer());
+						}
+					} else {
+						Win32ShowErrorBox("Failed to compile vertex shader");
+						Win32ShowErrorBox((char*)errorMsg->GetBufferPointer());
+					}
+				} else {
+					Win32Error("Failed to read file");
+				}
 			} else {
-				Win32ShowErrorBox("Failed to compile pixel shader");
-				Win32ShowErrorBox((char*)errorMsg->GetBufferPointer());
+				Win32Error("Failed to allocate memory");
 			}
 		} else {
-			Win32ShowErrorBox("Failed to compile vertex shader");
-			Win32ShowErrorBox((char*)errorMsg->GetBufferPointer());
+			Win32Error("Failed to get file size");
 		}
 	} else {
 		Win32Error("Failed to open shader file");
@@ -271,7 +299,6 @@ struct win32_d3d_program {
 	d3d_buffers buffers;
 };
 
-//TODO: allow passing of program settings such as resolution
 internal b32 Win32D3DInitEverything(win32_d3d_program* program, WNDPROC proc, int windowWidth, int windowHeight)
 {
 	b32 result = false;

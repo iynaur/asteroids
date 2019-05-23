@@ -3,15 +3,10 @@
 - Fullscreen mode + switching with atl+enter
 - Offline shader compilation
 - Texture rendering?
-- Conservation of momentum
-- Fix bug with speed burst when key goes up
-- Implement drag
 - Clean up TODOs
-- Move camera with ship, require background elements
-- Add a matrix which allows meshes to be stretched in width and height
+- Move camera with ship, requires background elements
 - implement 1D noise instead of rand() for engine trail
-- Implement max speed
-- Implement deceleration
+- Implement multisampling msaa
 */
 
 #pragma warning(push, 0)
@@ -169,7 +164,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 			
 			if (controllerInput.up) {
 				program.buffers.constantBufferData.distort.width = 1.0f;
-				program.buffers.constantBufferData.distort.height = ((float)(rand() % 256) / 512.0f) + 0.5f;
+				program.buffers.constantBufferData.distort.height = 1.0f - ((float)(rand() % 256) / 1024.0f);
 				program.buffers.constantBufferData.localOffset.y = -1.0f;
 				UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
 				program.context.deviceContext->IASetVertexBuffers(0, 1, &program.buffers.buffer[1].buffer, &stride, &offset);
