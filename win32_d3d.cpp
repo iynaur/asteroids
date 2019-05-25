@@ -40,6 +40,19 @@ internal void Win32ShowErrorBox(char* message)
 	MessageBoxA(0, message, "Error", MB_ICONERROR);
 }
 
+
+internal void* Win32AllocateWritableMemory(SIZE_T size)
+{
+	void* result = (void*)0;
+	void* memory = VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	if (memory) {
+		result = memory;
+	} else {
+		Win32Error("Failed to allocate memory");
+	}
+	return(result);
+}
+
 #pragma pack(push, 1)
 struct d3d_context {
 	IDXGISwapChain* swapChain;
@@ -61,7 +74,7 @@ internal b32 D3DInitContext(d3d_context* context, HWND hwnd, u32 clientWidth, u3
 		refreshRate,
 		DXGI_FORMAT_R8G8B8A8_UNORM,
 		DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED,
-		DXGI_MODE_SCALING_UNSPECIFIED // NOTE: Scaling, possibly change
+		DXGI_MODE_SCALING_UNSPECIFIED
 	};
 	
 	DXGI_SWAP_CHAIN_DESC swapChainDesc = {
@@ -135,7 +148,7 @@ internal b32 D3DInitShaders(d3d_shaders* shaders, ID3D11Device* device, ID3D11De
 		LARGE_INTEGER fileSize;
 		if (GetFileSizeEx(fileHandle, &fileSize)) {
 			u64 size = (u64)fileSize.QuadPart;
-			void* shaderCode = VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE); //TODO: Load into memory pool
+			void* shaderCode = Win32AllocateWritableMemory(size); //TODO: Load into memory pool
 			if (shaderCode != NULL) {
 				
 				DWORD readBytes = 0;
@@ -180,9 +193,9 @@ struct d3d_buffer {
 };
 
 #pragma pack(push, 4)
-struct d3d_buffers {
+struct d3d_program_buffers {
 	ID3D11Buffer* constantBuffer;
-	d3d_buffer buffer[2];
+	d3d_buffer* vertexBuffers;
 	struct vs_constant_buffer {
 		vec2 pos;
 		float ar;
@@ -207,88 +220,102 @@ internal b32 D3DInitBuffer(d3d_buffer* buffer, d3d_context context)
 	return(result);
 }
 
-internal b32 D3DInitBuffers(d3d_buffers* buffers, d3d_context context, d3d_shaders shaders, rect clientDimensions)
+internal b32 D3DInitVertexBuffers(d3d_program_buffers* buffers, d3d_context context, int n)
 {
 	b32 result = false;
-	HRESULT hr;
 	
-	vec2 v[] = {
+	int bufferWidth = 4;
+	buffers->vertexBuffers = (d3d_buffer*)Win32AllocateWritableMemory(n*bufferWidth*sizeof(vec2));
+	//TODO: load data from disk
+	vec2 v[3*4] = {
 		{ -0.75f, -1.0f },
+		{ 0.0f, 1.0f },
+		{ 0.0f, -0.75f },
+		{ 0.75f, -1.0f },
+		
+		{ -0.25f, -0.25f },
+		{ 0.0f, -0.0f },
+		{ 0.0f, -1.5f },
+		{ 0.25f, -0.25f },
+		
+		{ -1.75f, -1.0f },
 		{ 0.0f, 1.0f },
 		{ 0.0f, -0.75f },
 		{ 0.75f, -1.0f },
 	};
 	
-	buffers->buffer[0].bufferDesc = {};
-	buffers->buffer[0].bufferDesc.ByteWidth = sizeof(v);
-	buffers->buffer[0].bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	buffers->buffer[0].bufferData = {v, 0, 0};
-	
-	vec2 v2[] = {
-		{ -0.25f, -0.25f },
-		{ 0.0f, -0.0f },
-		{ 0.0f, -1.5f },
-		{ 0.25f, -0.25f },
-	};
-	
-	buffers->buffer[1].bufferDesc = {};
-	buffers->buffer[1].bufferDesc.ByteWidth = sizeof(v2);
-	buffers->buffer[1].bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	buffers->buffer[1].bufferData = {v2, 0, 0};
-	
-	if (D3DInitBuffer(&buffers->buffer[0], context)) {
-		if (D3DInitBuffer(&buffers->buffer[1], context)) {
-			ID3D11InputLayout* vertexLayout;
-			D3D11_INPUT_ELEMENT_DESC layout = {
-				"POSITION",
-				0,
-				DXGI_FORMAT_R32G32_FLOAT,
-				0,
-				0,
-				D3D11_INPUT_PER_VERTEX_DATA,
-				0
-			};
-			hr = context.device->CreateInputLayout(&layout, 1, shaders.vertexShaderBlob->GetBufferPointer(), shaders.vertexShaderBlob->GetBufferSize(), &vertexLayout);
-			if (SUCCEEDED(hr)){
-				context.deviceContext->IASetInputLayout(vertexLayout);
-				context.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-				
-				D3D11_VIEWPORT viewport = {
-					0, 
-					0, 
-					clientDimensions.width,
-					clientDimensions.height,
-					0.0f,
-					1.0f,
-				};
-				context.deviceContext->RSSetViewports(1, &viewport);
-				
-				buffers->constantBufferData.ar = clientDimensions.height / clientDimensions.width;
-				buffers->constantBufferData.scale = 25.0f;
-				buffers->constantBufferData.pos = { 0.0f, 0.0f };
-				buffers->constantBufferData.r = 0.0f;
-				
-				D3D11_BUFFER_DESC constantBufferDesc = {};
-				constantBufferDesc.ByteWidth = sizeof(buffers->constantBufferData);
-				constantBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-				constantBufferDesc.BindFlags = 0;
-				constantBufferDesc.CPUAccessFlags = 0;
-				constantBufferDesc.MiscFlags = 0;
-				constantBufferDesc.StructureByteStride = 0;
-				hr = context.device->CreateBuffer(&constantBufferDesc, NULL, &buffers->constantBuffer);
-				if (SUCCEEDED(hr)) {
-					result = true;
-				} else {
-					Win32ShowErrorBox("Failed to create constant buffer");
-				}
-			} else {
-				Win32ShowErrorBox("Failed to create input layout");
+	//TODO: clean hardcoded values
+	for (int i = 0; i < n; ++i) {
+		buffers->vertexBuffers[i].bufferDesc = {};
+		buffers->vertexBuffers[i].bufferDesc.ByteWidth = sizeof(v);
+		buffers->vertexBuffers[i].bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		buffers->vertexBuffers[i].bufferData = {&v[i*bufferWidth], 0, 0};
+		if (D3DInitBuffer(&buffers->vertexBuffers[i], context)) {
+			if (i == n-1) {
+				result = true;
 			}
 		} else {
 			Win32ShowErrorBox("Failed to init buffer");
+			break;
+		}
+	}
+	return(result);
+}
+
+internal b32 D3DInitBuffers(d3d_program_buffers* buffers, d3d_context context, d3d_shaders shaders, rect clientDimensions, int n)
+{
+	b32 result = false;
+	HRESULT hr;
+	
+	if (D3DInitVertexBuffers(buffers, context, n)) {
+		ID3D11InputLayout* vertexLayout;
+		D3D11_INPUT_ELEMENT_DESC layout = {
+			"POSITION",
+			0,
+			DXGI_FORMAT_R32G32_FLOAT,
+			0,
+			0,
+			D3D11_INPUT_PER_VERTEX_DATA,
+			0
+		};
+		hr = context.device->CreateInputLayout(&layout, 1, shaders.vertexShaderBlob->GetBufferPointer(), shaders.vertexShaderBlob->GetBufferSize(), &vertexLayout);
+		if (SUCCEEDED(hr)){
+			context.deviceContext->IASetInputLayout(vertexLayout);
+			context.deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+			
+			D3D11_VIEWPORT viewport = {
+				0, 
+				0, 
+				clientDimensions.width,
+				clientDimensions.height,
+				0.0f,
+				1.0f,
+			};
+			context.deviceContext->RSSetViewports(1, &viewport);
+			
+			buffers->constantBufferData.ar = clientDimensions.height / clientDimensions.width;
+			buffers->constantBufferData.scale = 25.0f;
+			buffers->constantBufferData.pos = { 0.0f, 0.0f };
+			buffers->constantBufferData.r = 0.0f;
+			
+			D3D11_BUFFER_DESC constantBufferDesc = {};
+			constantBufferDesc.ByteWidth = sizeof(buffers->constantBufferData);
+			constantBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+			constantBufferDesc.BindFlags = 0;
+			constantBufferDesc.CPUAccessFlags = 0;
+			constantBufferDesc.MiscFlags = 0;
+			constantBufferDesc.StructureByteStride = 0;
+			hr = context.device->CreateBuffer(&constantBufferDesc, NULL, &buffers->constantBuffer);
+			if (SUCCEEDED(hr)) {
+				result = true;
+			} else {
+				Win32ShowErrorBox("Failed to create constant buffer");
+			}
+		} else {
+			Win32ShowErrorBox("Failed to create input layout");
 		}
 	} else {
-		Win32ShowErrorBox("Failed to init buffer");
+		Win32ShowErrorBox("Failed to init buffers"); //TODO: print which buffers failed to init
 	}
 	return(result);
 }
@@ -296,7 +323,7 @@ internal b32 D3DInitBuffers(d3d_buffers* buffers, d3d_context context, d3d_shade
 struct win32_d3d_program {
 	d3d_context context;
 	d3d_shaders shaders;
-	d3d_buffers buffers;
+	d3d_program_buffers buffers;
 };
 
 internal b32 Win32D3DInitEverything(win32_d3d_program* program, WNDPROC proc, int windowWidth, int windowHeight)
@@ -326,7 +353,7 @@ internal b32 Win32D3DInitEverything(win32_d3d_program* program, WNDPROC proc, in
 				if (D3DInitContext(&program->context, hwnd, clientWidth, clientHeight)) {
 					if (D3DInitShaders(&program->shaders, program->context.device, program->context.deviceContext)) {
 						rect clientDimensions = {(float)clientWidth, (float)clientHeight};
-						if (D3DInitBuffers(&program->buffers, program->context, program->shaders, clientDimensions)) {
+						if (D3DInitBuffers(&program->buffers, program->context, program->shaders, clientDimensions, 3)) {
 							result = true;
 						} else {
 							Win32ShowErrorBox("Failed to init buffers");

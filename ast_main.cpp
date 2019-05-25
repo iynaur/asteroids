@@ -7,6 +7,7 @@
 - Move camera with ship, requires background elements
 - implement 1D noise instead of rand() for engine trail
 - Implement multisampling msaa
+- Implement custom rand function
 */
 
 #pragma warning(push, 0)
@@ -149,6 +150,25 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 			float clearColour[4] = {0.0f, 0.2f, 0.4f, 1.0f};
 			program.context.deviceContext->ClearRenderTargetView(program.context.renderTargetView, clearColour);
 			gameState = Update(controllerInput);
+			
+			
+			
+			program.buffers.constantBufferData.localOffset = {};
+			program.buffers.constantBufferData.pos = {};
+			program.buffers.constantBufferData.r = 0.0f;
+			program.buffers.constantBufferData.scale = gameState.scale;
+			program.buffers.constantBufferData.distort.x = 1.0f;
+			program.buffers.constantBufferData.distort.y = 1.0f;
+			UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
+			
+			UINT stride = sizeof(vec2);
+			UINT offset = 0;
+			program.context.deviceContext->IASetVertexBuffers(0, 1, &program.buffers.vertexBuffers[2].buffer, &stride, &offset);
+			program.context.deviceContext->Draw(4, 0);
+			
+			
+			
+			
 			program.buffers.constantBufferData.localOffset = {};
 			program.buffers.constantBufferData.pos = gameState.playerPos;
 			program.buffers.constantBufferData.r = gameState.playerRot;
@@ -157,17 +177,15 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 			program.buffers.constantBufferData.distort.y = 1.0f;
 			UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
 			
-			UINT stride = sizeof(vec2);
-			UINT offset = 0;
-			program.context.deviceContext->IASetVertexBuffers(0, 1, &program.buffers.buffer[0].buffer, &stride, &offset);
+			program.context.deviceContext->IASetVertexBuffers(0, 1, &program.buffers.vertexBuffers[0].buffer, &stride, &offset);
 			program.context.deviceContext->Draw(4, 0);
 			
 			if (controllerInput.up) {
 				program.buffers.constantBufferData.distort.width = 1.0f;
-				program.buffers.constantBufferData.distort.height = 1.0f - ((float)(rand() % 256) / 1024.0f);
+				program.buffers.constantBufferData.distort.height = 1.0f - (RandomFloat() / 4.0f);
 				program.buffers.constantBufferData.localOffset.y = -1.0f;
 				UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
-				program.context.deviceContext->IASetVertexBuffers(0, 1, &program.buffers.buffer[1].buffer, &stride, &offset);
+				program.context.deviceContext->IASetVertexBuffers(0, 1, &program.buffers.vertexBuffers[1].buffer, &stride, &offset);
 				program.context.deviceContext->Draw(4, 0);
 			}
 			
