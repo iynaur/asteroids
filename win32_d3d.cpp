@@ -79,7 +79,7 @@ internal b32 D3DInitContext(d3d_context* context, HWND hwnd, u32 clientWidth, u3
 	
 	DXGI_SWAP_CHAIN_DESC swapChainDesc = {
 		modeDesc,
-		{ 1, 0 },
+		{ 8, 0 },
 		DXGI_USAGE_RENDER_TARGET_OUTPUT,
 		1,
 		hwnd,
@@ -192,20 +192,19 @@ struct d3d_buffer {
 	D3D11_SUBRESOURCE_DATA bufferData;
 };
 
-#pragma pack(push, 4)
 struct d3d_program_buffers {
 	ID3D11Buffer* constantBuffer;
 	d3d_buffer* vertexBuffers;
 	struct vs_constant_buffer {
 		vec2 pos;
+		vec2 cameraPos;
+		vec2 distort;
+		vec2 localOffset;
 		float ar;
 		float scale;
 		float r;
-		vec2 distort;
-		vec2 localOffset;
 	} constantBufferData;
 };
-#pragma pack(pop)
 
 internal b32 D3DInitBuffer(d3d_buffer* buffer, d3d_context context)
 {
@@ -238,13 +237,13 @@ internal b32 D3DInitVertexBuffers(d3d_program_buffers* buffers, d3d_context cont
 		{ 0.0f, -1.5f },
 		{ 0.25f, -0.25f },
 		
-		{ -1.75f, -1.0f },
-		{ 0.0f, 1.0f },
-		{ 0.0f, -0.75f },
-		{ 0.75f, -1.0f },
+		{ -1.0f, 1.0f },
+		{ 1.0f, 1.0f },
+		{ -1.0f, -1.0f },
+		{ 1.0f, -1.0f },
 	};
 	
-	//TODO: clean hardcoded values
+	//TODO: allow for n sided polygons
 	for (int i = 0; i < n; ++i) {
 		buffers->vertexBuffers[i].bufferDesc = {};
 		buffers->vertexBuffers[i].bufferDesc.ByteWidth = sizeof(v);

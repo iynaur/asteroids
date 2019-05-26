@@ -8,6 +8,7 @@
 - implement 1D noise instead of rand() for engine trail
 - Implement multisampling msaa
 - Implement custom rand function
+- Draw all n vertex buffers
 */
 
 #pragma warning(push, 0)
@@ -48,7 +49,8 @@ internal game_state Update(controller_input input)
 	float maxVelocity = 1.0f;
 	
 	game_state result;
-	persist game_state newState = { 0, 0, 0, 25 };
+	persist game_state newState = {};
+	newState.scale = 25.0f;
 	
 	if (input.right && !input.left) {
 		newState.playerRot += 0.1f;
@@ -71,6 +73,7 @@ internal game_state Update(controller_input input)
 		velocity = V2Normalise(velocity) * newMag;
 	}
 	newState.playerPos = newState.playerPos - velocity;
+	
 	
 	if (newState.playerPos.x > (1.0f * newState.scale*16.0f/9.0f)) {
 		newState.playerPos.x = -1.0f * newState.scale *16.0f/9.0f;
@@ -147,7 +150,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 		while (programState.running) {
 			Win32GetControllerInput(&controllerInput, &programState);
 			
-			float clearColour[4] = {0.0f, 0.2f, 0.4f, 1.0f};
+			float clearColour[4] = {0.0f, 0.0f, 0.0f, 1.0f};
 			program.context.deviceContext->ClearRenderTargetView(program.context.renderTargetView, clearColour);
 			gameState = Update(controllerInput);
 			
@@ -159,13 +162,13 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 			program.buffers.constantBufferData.scale = gameState.scale;
 			program.buffers.constantBufferData.distort.x = 1.0f;
 			program.buffers.constantBufferData.distort.y = 1.0f;
+			program.buffers.constantBufferData.cameraPos = gameState.playerPos;
 			UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
 			
 			UINT stride = sizeof(vec2);
 			UINT offset = 0;
 			program.context.deviceContext->IASetVertexBuffers(0, 1, &program.buffers.vertexBuffers[2].buffer, &stride, &offset);
 			program.context.deviceContext->Draw(4, 0);
-			
 			
 			
 			

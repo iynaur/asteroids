@@ -1,36 +1,33 @@
 cbuffer vs_constant_buffer
 {
 	float2 pos;
+	float2 cameraPos;
+	float2 distort;
+	float2 localOffset;
 	float ar;
 	float scale;
 	float r;
-	float2 distort;
-	float2 localOffset;
 };
 
 float4 VS(float2 inPos : POSITION) : SV_POSITION 
 {
-	float2 tpos = inPos;
+	float2 p = inPos - (pos - cameraPos);
+	p += localOffset;
+	p *= distort;
 	
-	tpos.x += localOffset.y; //TODO: why does x correspond to y in local offset
-	tpos.y += localOffset.x;
-	
-	tpos.x *= distort.x;
-	tpos.y *= distort.y;
-	
-	float2x2 rotMatrix = {
+	float2x2 rotTransform = {
 		cos(r), -sin(r),
 		sin(r), cos(r)
 	};
+	p = mul(p, rotTransform);
 	
-	tpos = mul(tpos, rotMatrix) - pos;
-	float scaleFactor = (1 / scale);
-	float2x2 aspectRatioMatrix = {
-		ar * scaleFactor, 0.0f, 
-		0.0f, scaleFactor, 
+	float sf = 1/scale;
+	float2x2 aspectTransform = {
+		ar*sf, 0,
+		0, sf
 	};
-	float2 transformedPos = mul(tpos, aspectRatioMatrix);
-	return float4(transformedPos, 0.0f, 1.0f);
+	float2 finalPos = mul(aspectTransform, p);
+	return float4(finalPos, 0.0f, 1.0f);
 }
 
 float4 PS() : SV_TARGET 
