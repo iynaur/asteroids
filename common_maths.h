@@ -121,4 +121,23 @@ inline vec2 RadToVec2(float r)
 	return(result);
 }
 
+#ifndef WIN32_D3D_CPP
+#include "win32_d3d.cpp"
+#endif
+
+internal u32 RandomNumber(void)
+{
+	persist u32 seed;
+	if (!seed) seed = (u32)Win32GetTicks();
+	return((seed = (seed * 0x41C64E6D + 12345)));
+}
+
+internal float RandomFloat(void)
+{
+	float result = 0.0f;
+	u32 randInt = (u32)RandomNumber() % 256;
+	result = (float)randInt / 256.0f;
+	return(result);
+}
+
 #endif

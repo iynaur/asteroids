@@ -11,15 +11,14 @@ cbuffer vs_constant_buffer
 
 float4 VS(float2 inPos : POSITION) : SV_POSITION 
 {
-	float2 p = inPos - (pos - cameraPos);
-	p += localOffset;
-	p *= distort;
-	
 	float2x2 rotTransform = {
 		cos(r), -sin(r),
 		sin(r), cos(r)
 	};
-	p = mul(p, rotTransform);
+	float2 p = inPos;
+ p += localOffset;
+	p *= distort;
+	p = mul(p, rotTransform) - (pos - cameraPos);
 	
 	float sf = 1/scale;
 	float2x2 aspectTransform = {

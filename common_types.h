@@ -12,12 +12,4 @@ typedef long unsigned u64;
 #define true (b32)1
 #define false (b32)0
 
-internal float RandomFloat(void)
-{
-	float result = 0.0f;
-	u32 randInt = (u32)rand() % 256;
-	result = (float)randInt / 256.0f;
-	return(result);
-}
-
 #endif

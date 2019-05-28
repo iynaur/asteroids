@@ -192,18 +192,21 @@ struct d3d_buffer {
 	D3D11_SUBRESOURCE_DATA bufferData;
 };
 
+struct vs_constant_buffer {
+	vec2 pos;
+	vec2 cameraPos;
+	vec2 distort;
+	vec2 localOffset;
+	float ar;
+	float scale;
+	float r;
+};
+
 struct d3d_program_buffers {
 	ID3D11Buffer* constantBuffer;
 	d3d_buffer* vertexBuffers;
-	struct vs_constant_buffer {
-		vec2 pos;
-		vec2 cameraPos;
-		vec2 distort;
-		vec2 localOffset;
-		float ar;
-		float scale;
-		float r;
-	} constantBufferData;
+	float ar;
+	vs_constant_buffer constantBufferData;
 };
 
 internal b32 D3DInitBuffer(d3d_buffer* buffer, d3d_context context)
@@ -292,7 +295,8 @@ internal b32 D3DInitBuffers(d3d_program_buffers* buffers, d3d_context context, d
 			};
 			context.deviceContext->RSSetViewports(1, &viewport);
 			
-			buffers->constantBufferData.ar = clientDimensions.height / clientDimensions.width;
+			buffers->ar = clientDimensions.height / clientDimensions.width;
+			buffers->constantBufferData.ar = buffers->ar;
 			buffers->constantBufferData.scale = 25.0f;
 			buffers->constantBufferData.pos = { 0.0f, 0.0f };
 			buffers->constantBufferData.r = 0.0f;

@@ -4,9 +4,7 @@
 - Offline shader compilation
 - Texture rendering?
 - Clean up TODOs
-- Move camera with ship, requires background elements
 - implement 1D noise instead of rand() for engine trail
-- Implement multisampling msaa
 - Implement custom rand function
 - Draw all n vertex buffers
 */
@@ -38,18 +36,18 @@ struct controller_input {
 	};
 };
 
-struct game_state {
+struct player_state {
 	vec2 playerPos;
 	float playerRot;
 	float scale;
 };
 
-internal game_state Update(controller_input input)
+internal player_state UpdatePlayer(controller_input input)
 {
-	float maxVelocity = 1.0f;
+	float maxSpeed = 1.0f;
 	
-	game_state result;
-	persist game_state newState = {};
+	player_state result;
+	persist player_state newState = {};
 	newState.scale = 25.0f;
 	
 	if (input.right && !input.left) {
@@ -59,14 +57,17 @@ internal game_state Update(controller_input input)
 	}
 	vec2 aimVector = V2Normalise(RadToVec2(newState.playerRot));
 	
+	//TODO: Make drag a constant force, rather than only applied when not accelerating
+	//TODO: Allow no drag when ship is in a vacuum
+	
 	persist vec2 velocity;
 	float accelRate = 0.01f;
 	float decelRate = 0.003f;
 	float velocityMag = V2Mag(velocity);
 	if (input.up) {
 		velocity = (aimVector*accelRate) + velocity;
-		if (velocityMag > maxVelocity) {
-			velocity = V2Normalise(velocity) * maxVelocity;
+		if (velocityMag > maxSpeed) {
+			velocity = V2Normalise(velocity) * maxSpeed;
 		}
 	} else {
 		float newMag = fClamp(velocityMag - decelRate, 0.0f, velocityMag);
@@ -99,6 +100,14 @@ internal void UpdateConstBuffers(d3d_context context, ID3D11Buffer** constantBuf
 {
 	context.deviceContext->UpdateSubresource(*constantBuffer, 0, NULL, constantBufferData, 0, 0);
 	context.deviceContext->VSSetConstantBuffers(0, 1, constantBuffer);
+}
+
+internal void SetProgramVSConstantBuffer(win32_d3d_program* program, vs_constant_buffer values)
+{
+	int s = sizeof(values);
+	for (int i = 0; i < s; ++i) {
+		((byte*)&program->buffers.constantBufferData)[i] = ((byte*)&values)[i];
+	}
 }
 
 internal void Win32GetControllerInput(controller_input* input, program_state* programState)
@@ -146,23 +155,26 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 	if (Win32D3DInitEverything(&program, MainWindowProc, 1280, 720)) {
 		program_state programState = { true };
 		controller_input controllerInput = {};
-		game_state gameState = { 0.0f, 0.0f, 0.0f, 10.0f};
+		player_state playerState = { 0.0f, 0.0f, 0.0f, 10.0f};
 		while (programState.running) {
 			Win32GetControllerInput(&controllerInput, &programState);
 			
 			float clearColour[4] = {0.0f, 0.0f, 0.0f, 1.0f};
 			program.context.deviceContext->ClearRenderTargetView(program.context.renderTargetView, clearColour);
-			gameState = Update(controllerInput);
+			playerState = UpdatePlayer(controllerInput);
 			
 			
-			
-			program.buffers.constantBufferData.localOffset = {};
-			program.buffers.constantBufferData.pos = {};
-			program.buffers.constantBufferData.r = 0.0f;
-			program.buffers.constantBufferData.scale = gameState.scale;
-			program.buffers.constantBufferData.distort.x = 1.0f;
-			program.buffers.constantBufferData.distort.y = 1.0f;
-			program.buffers.constantBufferData.cameraPos = gameState.playerPos;
+			program.buffers.constantBufferData = {};
+			vs_constant_buffer square = {};
+			square.cameraPos = playerState.playerPos;
+			square.r = Win32GetTime();
+			square.scale = playerState.scale;
+			square.ar = program.buffers.ar;
+			square.localOffset = {};
+			square.pos = {};
+			square.distort.x = 1.0f;
+			square.distort.y = 1.0f;
+			SetProgramVSConstantBuffer(&program, square);
 			UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
 			
 			UINT stride = sizeof(vec2);
@@ -171,22 +183,25 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 			program.context.deviceContext->Draw(4, 0);
 			
 			
-			
-			program.buffers.constantBufferData.localOffset = {};
-			program.buffers.constantBufferData.pos = gameState.playerPos;
-			program.buffers.constantBufferData.r = gameState.playerRot;
-			program.buffers.constantBufferData.scale = gameState.scale;
-			program.buffers.constantBufferData.distort.x = 1.0f;
-			program.buffers.constantBufferData.distort.y = 1.0f;
+			vs_constant_buffer playerShip = square;
+			playerShip.localOffset = {};
+			playerShip.pos = playerState.playerPos;
+			playerShip.r = playerState.playerRot;
+			playerShip.scale = playerState.scale;
+			playerShip.distort.x = 1.0f;
+			playerShip.distort.y = 1.0f;
+			SetProgramVSConstantBuffer(&program, playerShip);
 			UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
 			
 			program.context.deviceContext->IASetVertexBuffers(0, 1, &program.buffers.vertexBuffers[0].buffer, &stride, &offset);
 			program.context.deviceContext->Draw(4, 0);
 			
 			if (controllerInput.up) {
-				program.buffers.constantBufferData.distort.width = 1.0f;
-				program.buffers.constantBufferData.distort.height = 1.0f - (RandomFloat() / 4.0f);
-				program.buffers.constantBufferData.localOffset.y = -1.0f;
+				vs_constant_buffer playerShipTrail = playerShip;
+				playerShipTrail.distort.width = 1.0f - (RandomFloat() / 2.0f);
+				playerShipTrail.distort.height = 1.0f - (RandomFloat() / 4.0f);
+				playerShipTrail.localOffset.y = -1.0f;
+				SetProgramVSConstantBuffer(&program, playerShipTrail);
 				UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
 				program.context.deviceContext->IASetVertexBuffers(0, 1, &program.buffers.vertexBuffers[1].buffer, &stride, &offset);
 				program.context.deviceContext->Draw(4, 0);
