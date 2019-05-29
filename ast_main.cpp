@@ -36,6 +36,19 @@ struct controller_input {
 	};
 };
 
+struct entity_state {
+	vec2 pos;
+	vec2 distort;
+	vec2 localOffset;
+	float rot;
+};
+
+struct game_state {
+	vec2 cameraPos;
+	float cameraScale;
+	float aspectRatio;
+};
+
 struct player_state {
 	vec2 playerPos;
 	float playerRot;
@@ -147,6 +160,27 @@ internal LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
 	return(result);
 }
 
+struct vs_constant_pointer_buffer {
+	vec2* pos;
+	vec2* cameraPos;
+	vec2* distort;
+	vec2* localOffset;
+	float* ar;
+	float* scale;
+	float* r;
+};
+
+internal void SetVSBufferFromPointerBuffer(vs_constant_buffer* buffer, vs_constant_pointer_buffer pointers)
+{
+	buffer->pos = *pointers.pos;
+	buffer->cameraPos = *pointers.cameraPos;
+	buffer->distort = *pointers.distort;
+	buffer->localOffset = *pointers.localOffset;
+	buffer->ar = *pointers.ar;
+	buffer->scale = *pointers.scale;
+	buffer->r = *pointers.r;
+}
+
 #pragma warning(push, 0)
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, int cmdShow)
 #pragma warning(pop)
@@ -156,25 +190,73 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 		program_state programState = { true };
 		controller_input controllerInput = {};
 		player_state playerState = { 0.0f, 0.0f, 0.0f, 10.0f};
+		game_state gameState;
+		gameState.cameraPos = {0.0f, 0.0f};
+		gameState.cameraScale = 25.0f;
+		gameState.aspectRatio = program.buffers.ar;
+		
+		
+		entity_state entities[3];
+		
+		
+		entities[0].pos = {0.0f, 0.0f};
+		entities[0].distort = {1.0f, 1.0f};
+		entities[0].localOffset = {0.0f, 0.0f};
+		entities[0].rot = 0.0f;
+		
+		entities[1].pos = {0.0f, 0.0f};
+		entities[1].distort = {1.0f, 1.0f};
+		entities[1].localOffset = {0.0f, -1.0f};
+		entities[1].rot = 0.0f;
+		
+		entities[2].pos = {0.0f, 0.0f};
+		entities[2].distort = {1.0f, 1.0f};
+		entities[2].localOffset = {0.0f, 0.0f};
+		entities[2].rot = 0.0f;
+		
+		
+		vs_constant_pointer_buffer entityConstantPointerBuffers[3];
+		for (int i = 0; i < 3; ++i) {
+			entityConstantPointerBuffers[i].pos = &entities[i].pos;
+			entityConstantPointerBuffers[i].cameraPos = &gameState.cameraPos;
+			entityConstantPointerBuffers[i].distort = &entities[i].distort;
+			entityConstantPointerBuffers[i].localOffset = &entities[i].localOffset;
+			entityConstantPointerBuffers[i].ar = &gameState.aspectRatio;
+			entityConstantPointerBuffers[i].scale = &gameState.cameraScale;
+			entityConstantPointerBuffers[i].r = &entities[i].rot;
+		}
+		
+		vs_constant_buffer entityConstantBuffers[3];
+		
 		while (programState.running) {
 			Win32GetControllerInput(&controllerInput, &programState);
 			
+			
+			/*
+			struct vs_constant_buffer {
+	vec2 pos;
+	vec2 cameraPos;
+	vec2 distort;
+	vec2 localOffset;
+	float ar;
+	float scale;
+	float r;
+};
+
+
+			*/
+			
 			float clearColour[4] = {0.0f, 0.0f, 0.0f, 1.0f};
 			program.context.deviceContext->ClearRenderTargetView(program.context.renderTargetView, clearColour);
+			//TODO: Update player should return entitiy_state, get rid of player_state
 			playerState = UpdatePlayer(controllerInput);
-			
+			gameState.cameraPos = playerState.playerPos;
+			entities[0].pos = playerState.playerPos;
+			entities[0].rot = playerState.playerRot;
 			
 			program.buffers.constantBufferData = {};
-			vs_constant_buffer square = {};
-			square.cameraPos = playerState.playerPos;
-			square.r = Win32GetTime();
-			square.scale = playerState.scale;
-			square.ar = program.buffers.ar;
-			square.localOffset = {};
-			square.pos = {};
-			square.distort.x = 1.0f;
-			square.distort.y = 1.0f;
-			SetProgramVSConstantBuffer(&program, square);
+			SetVSBufferFromPointerBuffer(&entityConstantBuffers[2], entityConstantPointerBuffers[2]);
+			SetProgramVSConstantBuffer(&program, entityConstantBuffers[2]);
 			UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
 			
 			UINT stride = sizeof(vec2);
@@ -182,26 +264,21 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 			program.context.deviceContext->IASetVertexBuffers(0, 1, &program.buffers.vertexBuffers[2].buffer, &stride, &offset);
 			program.context.deviceContext->Draw(4, 0);
 			
-			
-			vs_constant_buffer playerShip = square;
-			playerShip.localOffset = {};
-			playerShip.pos = playerState.playerPos;
-			playerShip.r = playerState.playerRot;
-			playerShip.scale = playerState.scale;
-			playerShip.distort.x = 1.0f;
-			playerShip.distort.y = 1.0f;
-			SetProgramVSConstantBuffer(&program, playerShip);
+			program.buffers.constantBufferData = {};
+			SetVSBufferFromPointerBuffer(&entityConstantBuffers[0], entityConstantPointerBuffers[0]);
+			SetProgramVSConstantBuffer(&program, entityConstantBuffers[0]);
 			UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
-			
 			program.context.deviceContext->IASetVertexBuffers(0, 1, &program.buffers.vertexBuffers[0].buffer, &stride, &offset);
 			program.context.deviceContext->Draw(4, 0);
 			
 			if (controllerInput.up) {
-				vs_constant_buffer playerShipTrail = playerShip;
-				playerShipTrail.distort.width = 1.0f - (RandomFloat() / 2.0f);
-				playerShipTrail.distort.height = 1.0f - (RandomFloat() / 4.0f);
-				playerShipTrail.localOffset.y = -1.0f;
-				SetProgramVSConstantBuffer(&program, playerShipTrail);
+				program.buffers.constantBufferData = {};
+				entities[1].pos = entities[0].pos;
+				entities[1].rot = entities[0].rot;
+				entities[1].distort.width = 1.0f - (RandomFloat() / 2.0f);
+				entities[1].distort.height = 1.0f - (RandomFloat() / 4.0f);
+				SetVSBufferFromPointerBuffer(&entityConstantBuffers[1], entityConstantPointerBuffers[1]);
+				SetProgramVSConstantBuffer(&program, entityConstantBuffers[1]);
 				UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
 				program.context.deviceContext->IASetVertexBuffers(0, 1, &program.buffers.vertexBuffers[1].buffer, &stride, &offset);
 				program.context.deviceContext->Draw(4, 0);
