@@ -49,29 +49,22 @@ struct game_state {
 	float aspectRatio;
 };
 
-struct player_state {
-	vec2 playerPos;
-	float playerRot;
-	float scale;
-};
-
-internal player_state UpdatePlayer(controller_input input)
+internal entity_state UpdatePlayer(controller_input input, game_state gameState)
 {
 	float maxSpeed = 1.0f;
 	
-	player_state result;
-	persist player_state newState = {};
-	newState.scale = 25.0f;
+	entity_state result;
+	persist entity_state newState = { 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f };
 	
 	if (input.right && !input.left) {
-		newState.playerRot += 0.1f;
+		newState.rot += 0.1f;
 	} else if (!input.right && input.left) {
-		newState.playerRot -= 0.1f;
+		newState.rot -= 0.1f;
 	}
-	vec2 aimVector = V2Normalise(RadToVec2(newState.playerRot));
+	vec2 aimVector = V2Normalise(RadToVec2(newState.rot));
 	
 	//TODO: Make drag a constant force, rather than only applied when not accelerating
-	//TODO: Allow no drag when ship is in a vacuum
+	//TODO: Allow for no drag when ship is in a vacuum
 	
 	persist vec2 velocity;
 	float accelRate = 0.01f;
@@ -86,26 +79,25 @@ internal player_state UpdatePlayer(controller_input input)
 		float newMag = fClamp(velocityMag - decelRate, 0.0f, velocityMag);
 		velocity = V2Normalise(velocity) * newMag;
 	}
-	newState.playerPos = newState.playerPos - velocity;
+	newState.pos = newState.pos - velocity;
 	
 	
-	if (newState.playerPos.x > (1.0f * newState.scale*16.0f/9.0f)) {
-		newState.playerPos.x = -1.0f * newState.scale *16.0f/9.0f;
+	vec2 axisCamScale = { gameState.cameraScale * (1/gameState.aspectRatio), gameState.cameraScale };
+	if (newState.pos.x > (1.0f * axisCamScale.x)) {
+		newState.pos.x = -1.0f * axisCamScale.x;
 	}
-	if (newState.playerPos.x < (-1.0f * newState.scale*16.0f/9.0f)) {
-		newState.playerPos.x = 1.0f * newState.scale *16.0f/9.0f;
-	}
-	
-	if (newState.playerPos.y > (1.0f * newState.scale)) {
-		newState.playerPos.y = -1.0f * newState.scale;
-	}
-	if (newState.playerPos.y < (-1.0f * newState.scale)) {
-		newState.playerPos.y = 1.0f * newState.scale;
+	if (newState.pos.x < (-1.0f * axisCamScale.x)) {
+		newState.pos.x = 1.0f * axisCamScale.x;
 	}
 	
-	result.playerPos = newState.playerPos;
-	result.playerRot = newState.playerRot;
-	result.scale = newState.scale;
+	if (newState.pos.y > (1.0f * axisCamScale.y)) {
+		newState.pos.y = -1.0f * axisCamScale.y;
+	}
+	if (newState.pos.y < (-1.0f * axisCamScale.y)) {
+		newState.pos.y = 1.0f * axisCamScale.y;
+	}
+	
+	result = newState;
 	return(result);
 }
 
@@ -189,7 +181,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 	if (Win32D3DInitEverything(&program, MainWindowProc, 1280, 720)) {
 		program_state programState = { true };
 		controller_input controllerInput = {};
-		player_state playerState = { 0.0f, 0.0f, 0.0f, 10.0f};
 		game_state gameState;
 		gameState.cameraPos = {0.0f, 0.0f};
 		gameState.cameraScale = 25.0f;
@@ -230,29 +221,11 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 		
 		while (programState.running) {
 			Win32GetControllerInput(&controllerInput, &programState);
-			
-			
-			/*
-			struct vs_constant_buffer {
-	vec2 pos;
-	vec2 cameraPos;
-	vec2 distort;
-	vec2 localOffset;
-	float ar;
-	float scale;
-	float r;
-};
-
-
-			*/
-			
 			float clearColour[4] = {0.0f, 0.0f, 0.0f, 1.0f};
 			program.context.deviceContext->ClearRenderTargetView(program.context.renderTargetView, clearColour);
 			//TODO: Update player should return entitiy_state, get rid of player_state
-			playerState = UpdatePlayer(controllerInput);
-			gameState.cameraPos = playerState.playerPos;
-			entities[0].pos = playerState.playerPos;
-			entities[0].rot = playerState.playerRot;
+			entities[0] = UpdatePlayer(controllerInput, gameState);
+			gameState.cameraPos = entities[0].pos;
 			
 			program.buffers.constantBufferData = {};
 			SetVSBufferFromPointerBuffer(&entityConstantBuffers[2], entityConstantPointerBuffers[2]);
