@@ -9,6 +9,11 @@ cbuffer vs_constant_buffer
 	float r;
 };
 
+cbuffer ps_constant_buffer
+{
+	float4 rgba;
+}
+
 float4 VS(float2 inPos : POSITION) : SV_POSITION 
 {
 	float2x2 rotTransform = {
@@ -31,5 +36,5 @@ float4 VS(float2 inPos : POSITION) : SV_POSITION
 
 float4 PS() : SV_TARGET 
 {
-	return float4(1.0f, 1.0f, 1.0f, 1.0f);
+	return rgba;
 }

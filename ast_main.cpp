@@ -47,7 +47,6 @@ struct game_state {
 	vec2 cameraPos;
 	float cameraScale;
 	float aspectRatio;
-	float red;
 };
 
 struct greater_thans_less_thans {
@@ -68,7 +67,7 @@ internal greater_thans_less_thans CountGTLS(float a, float points[3])
 	return(result);
 }
 
-internal b32 PointTriangleIntersection(vec2 point, vec2 triangle[3], float* red)
+internal b32 PointTriangleIntersection(vec2 point, vec2 triangle[3])
 {
 	b32 result = false;
 	float m[3] = {};
@@ -107,14 +106,12 @@ internal b32 PointTriangleIntersection(vec2 point, vec2 triangle[3], float* red)
 	
 	result = (b32)(xAligned && yAligned);
 	if (result) {
-		*red = 0.0f;
+		
 	}
 	return(result);
 }
 
-#include <stdio.h>
-
-internal entity_state UpdatePlayer(controller_input input, game_state gameState, float* red)
+internal entity_state UpdatePlayer(controller_input input, game_state gameState)
 {
 	float maxSpeed = 1.0f;
 	
@@ -170,26 +167,37 @@ internal entity_state UpdatePlayer(controller_input input, game_state gameState,
 		{ -1.5f, -1.6f },
 	};
 	
-	b32 col = PointTriangleIntersection(point, triangle, red);
+	b32 col = PointTriangleIntersection(point, triangle);
 	if (col) {
-		printf("INTERSECTION %f, %f\n", point.x, point.y);
+		
 	}
 	
 	result = newState;
 	return(result);
 }
 
-internal void UpdateConstBuffers(d3d_context context, ID3D11Buffer** constantBuffer, void* constantBufferData)
+internal void UpdateConstBuffers(d3d_context context, ID3D11Buffer** constantBuffer, void* constantBufferData, ID3D11Buffer** psConstantBuffer, void* psConstantBufferData)
 {
 	context.deviceContext->UpdateSubresource(*constantBuffer, 0, NULL, constantBufferData, 0, 0);
 	context.deviceContext->VSSetConstantBuffers(0, 1, constantBuffer);
+	
+	context.deviceContext->UpdateSubresource(*psConstantBuffer, 0, NULL, psConstantBufferData, 0, 0);
+	context.deviceContext->PSSetConstantBuffers(0, 1, psConstantBuffer);
 }
 
 internal void SetProgramVSConstantBuffer(win32_d3d_program* program, vs_constant_buffer values)
 {
 	int s = sizeof(values);
 	for (int i = 0; i < s; ++i) {
-		((byte*)&program->buffers.constantBufferData)[i] = ((byte*)&values)[i];
+		((byte*)&program->buffers.vsConstantBufferData)[i] = ((byte*)&values)[i];
+	}
+}
+
+internal void SetProgramPSConstantBuffer(win32_d3d_program* program, ps_constant_buffer values)
+{
+	int s = sizeof(values);
+	for (int i = 0; i < s; ++i) {
+		((byte*)&program->buffers.psConstantBufferData)[i] = ((byte*)&values)[i];
 	}
 }
 
@@ -254,8 +262,7 @@ internal void SetVSBufferFromPointerBuffer(vs_constant_buffer* buffer, vs_consta
 #define PLAYER_INDEX 0
 
 #pragma warning(push, 0)
-//int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, int cmdShow)
-int main(void)
+int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, int cmdShow)
 #pragma warning(pop)
 {
 	win32_d3d_program program;
@@ -266,7 +273,6 @@ int main(void)
 		gameState.cameraPos = {0.0f, 0.0f};
 		gameState.cameraScale = 25.0f;
 		gameState.aspectRatio = program.buffers.ar;
-		gameState.red = 1.0f;
 		
 		
 		entity_state entities[3];
@@ -302,43 +308,45 @@ int main(void)
 		entityConstantPointerBuffers[1].r = &entities[PLAYER_INDEX].rot;
 		
 		vs_constant_buffer entityConstantBuffers[3];
-		
+		ps_constant_buffer globColour = {1.0f, 1.0f, 0.0f, 1.0f};
 		while (programState.running) {
 			Win32GetControllerInput(&controllerInput, &programState);
-			float clearColour[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+			float clearColour[4] = {0.0f, 0.0f, 0.4f, 1.0f};
 			program.context.deviceContext->ClearRenderTargetView(program.context.renderTargetView, clearColour);
-			entities[PLAYER_INDEX] = UpdatePlayer(controllerInput, gameState, &gameState.red);
+			entities[PLAYER_INDEX] = UpdatePlayer(controllerInput, gameState);
 			gameState.cameraPos = entities[PLAYER_INDEX].pos;
 			
 			
-			program.buffers.constantBufferData = {};
+			program.buffers.vsConstantBufferData = {};
 			SetVSBufferFromPointerBuffer(&entityConstantBuffers[2], entityConstantPointerBuffers[2]);
 			SetProgramVSConstantBuffer(&program, entityConstantBuffers[2]);
-			UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
+			SetProgramPSConstantBuffer(&program, globColour);
+			UpdateConstBuffers(program.context, &program.buffers.vsConstantBuffer, &program.buffers.vsConstantBufferData, &program.buffers.psConstantBuffer, &program.buffers.psConstantBufferData);
 			
 			UINT stride = sizeof(vec2);
 			UINT offset = 0;
 			program.context.deviceContext->IASetVertexBuffers(0, 1, &program.buffers.vertexBuffers[2].buffer, &stride, &offset);
 			program.context.deviceContext->Draw(4, 0);
 			
-			program.buffers.constantBufferData = {};
+			program.buffers.vsConstantBufferData = {};
 			SetVSBufferFromPointerBuffer(&entityConstantBuffers[0], entityConstantPointerBuffers[0]);
 			SetProgramVSConstantBuffer(&program, entityConstantBuffers[0]);
-			UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
+			SetProgramPSConstantBuffer(&program, globColour);
+			UpdateConstBuffers(program.context, &program.buffers.vsConstantBuffer, &program.buffers.vsConstantBufferData, &program.buffers.psConstantBuffer, &program.buffers.psConstantBufferData);
 			program.context.deviceContext->IASetVertexBuffers(0, 1, &program.buffers.vertexBuffers[0].buffer, &stride, &offset);
 			program.context.deviceContext->Draw(4, 0);
 			
 			if (controllerInput.up) {
-				program.buffers.constantBufferData = {};
+				program.buffers.vsConstantBufferData = {};
 				entities[1].distort.width = 1.0f - (RandomFloat() / 2.0f);
 				entities[1].distort.height = 1.0f - (RandomFloat() / 4.0f);
 				SetVSBufferFromPointerBuffer(&entityConstantBuffers[1], entityConstantPointerBuffers[1]);
 				SetProgramVSConstantBuffer(&program, entityConstantBuffers[1]);
-				UpdateConstBuffers(program.context, &program.buffers.constantBuffer, &program.buffers.constantBufferData);
+				SetProgramPSConstantBuffer(&program, globColour);
+				UpdateConstBuffers(program.context, &program.buffers.vsConstantBuffer, &program.buffers.vsConstantBufferData, &program.buffers.psConstantBuffer, &program.buffers.psConstantBufferData);
 				program.context.deviceContext->IASetVertexBuffers(0, 1, &program.buffers.vertexBuffers[1].buffer, &stride, &offset);
 				program.context.deviceContext->Draw(4, 0);
 			}
-			
 			program.context.swapChain->Present(1, 0);
 		}
 	} else {

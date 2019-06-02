@@ -202,11 +202,17 @@ struct vs_constant_buffer {
 	float r;
 };
 
+struct ps_constant_buffer {
+	rgba rgba;
+};
+
 struct d3d_program_buffers {
-	ID3D11Buffer* constantBuffer;
 	d3d_buffer* vertexBuffers;
+	ID3D11Buffer* vsConstantBuffer;
+	ID3D11Buffer* psConstantBuffer;
+	vs_constant_buffer vsConstantBufferData;
+	ps_constant_buffer psConstantBufferData;
 	float ar;
-	vs_constant_buffer constantBufferData;
 };
 
 internal b32 D3DInitBuffer(d3d_buffer* buffer, d3d_context context)
@@ -243,7 +249,7 @@ internal b32 D3DInitVertexBuffers(d3d_program_buffers* buffers, d3d_context cont
 		{ -1.1f, 1.2f },
 		{ 1.3f, 1.4f },
 		{ -1.5f, -1.6f },
-		//{ 1.0f, -1.0f },
+		{ 1.0f, -1.0f },
 	};
 	
 	//TODO: allow for n sided polygons
@@ -296,21 +302,34 @@ internal b32 D3DInitBuffers(d3d_program_buffers* buffers, d3d_context context, d
 			context.deviceContext->RSSetViewports(1, &viewport);
 			
 			buffers->ar = clientDimensions.height / clientDimensions.width;
-			buffers->constantBufferData.ar = buffers->ar;
-			buffers->constantBufferData.scale = 25.0f;
-			buffers->constantBufferData.pos = { 0.0f, 0.0f };
-			buffers->constantBufferData.r = 0.0f;
+			buffers->vsConstantBufferData.ar = buffers->ar;
+			buffers->vsConstantBufferData.scale = 25.0f;
+			buffers->vsConstantBufferData.pos = { 0.0f, 0.0f };
+			buffers->vsConstantBufferData.r = 0.0f;
 			
 			D3D11_BUFFER_DESC constantBufferDesc = {};
-			constantBufferDesc.ByteWidth = sizeof(buffers->constantBufferData);
+			constantBufferDesc.ByteWidth = sizeof(buffers->vsConstantBufferData);
 			constantBufferDesc.Usage = D3D11_USAGE_DEFAULT;
 			constantBufferDesc.BindFlags = 0;
 			constantBufferDesc.CPUAccessFlags = 0;
 			constantBufferDesc.MiscFlags = 0;
 			constantBufferDesc.StructureByteStride = 0;
-			hr = context.device->CreateBuffer(&constantBufferDesc, NULL, &buffers->constantBuffer);
+			hr = context.device->CreateBuffer(&constantBufferDesc, NULL, &buffers->vsConstantBuffer);
 			if (SUCCEEDED(hr)) {
-				result = true;
+				buffers->psConstantBufferData.rgba = { 1.0f, 1.0f, 1.0f, 1.0f};
+				D3D11_BUFFER_DESC psConstantBufferDesc = {};
+				psConstantBufferDesc.ByteWidth = sizeof(buffers->psConstantBufferData);
+				psConstantBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+				psConstantBufferDesc.BindFlags = 0;
+				psConstantBufferDesc.CPUAccessFlags = 0;
+				psConstantBufferDesc.MiscFlags = 0;
+				psConstantBufferDesc.StructureByteStride = 0;
+				hr = context.device->CreateBuffer(&psConstantBufferDesc, NULL, &buffers->psConstantBuffer);
+				if (SUCCEEDED(hr)) {
+					result = true;
+				} else {
+					Win32ShowErrorBox("Failed to create pixel shader constant buffer");
+				}
 			} else {
 				Win32ShowErrorBox("Failed to create constant buffer");
 			}

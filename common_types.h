@@ -12,4 +12,11 @@ typedef long unsigned u64;
 #define true (b32)1
 #define false (b32)0
 
+struct rgba {
+	float r;
+	float g;
+	float b;
+	float a;
+};
+
 #endif
