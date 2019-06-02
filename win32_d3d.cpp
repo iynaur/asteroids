@@ -240,10 +240,10 @@ internal b32 D3DInitVertexBuffers(d3d_program_buffers* buffers, d3d_context cont
 		{ 0.0f, -1.5f },
 		{ 0.25f, -0.25f },
 		
-		{ -1.0f, 1.0f },
-		{ 1.0f, 1.0f },
-		{ -1.0f, -1.0f },
-		{ 1.0f, -1.0f },
+		{ -1.1f, 1.2f },
+		{ 1.3f, 1.4f },
+		{ -1.5f, -1.6f },
+		//{ 1.0f, -1.0f },
 	};
 	
 	//TODO: allow for n sided polygons

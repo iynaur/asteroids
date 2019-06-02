@@ -47,9 +47,74 @@ struct game_state {
 	vec2 cameraPos;
 	float cameraScale;
 	float aspectRatio;
+	float red;
 };
 
-internal entity_state UpdatePlayer(controller_input input, game_state gameState)
+struct greater_thans_less_thans {
+	int greaterThans;
+	int lessThans;
+};
+
+internal greater_thans_less_thans CountGTLS(float a, float points[3])
+{
+	greater_thans_less_thans result = {};
+	for (int i = 0; i < 3; ++i) {
+		if (points[i] > a) {
+			result.greaterThans++;
+		} else if (points[i] < a) {
+			result.lessThans++;
+		}
+	}
+	return(result);
+}
+
+internal b32 PointTriangleIntersection(vec2 point, vec2 triangle[3], float* red)
+{
+	b32 result = false;
+	float m[3] = {};
+	//TODO: Check for divide by zero
+	m[0] = (triangle[2].y - triangle[1].y) / (triangle[2].x - triangle[1].x);
+	m[1] = (triangle[2].y - triangle[1].y) / (triangle[2].x - triangle[1].x);
+	m[2] = (triangle[2].y - triangle[0].y) / (triangle[2].x - triangle[0].x);
+	
+	float c[3] = {};
+	c[0] = triangle[0].y - (m[0] * triangle[0].x);
+	c[1] = triangle[1].y - (m[1] * triangle[1].x);
+	c[2] = triangle[2].y - (m[2] * triangle[2].x);
+	
+	float yPoints[3] = {};
+	yPoints[0] = (m[0] * point.x) + c[0];
+	yPoints[1] = (m[1] * point.x) + c[1];
+	yPoints[2] = (m[2] * point.x) + c[2];
+	
+	b32 yAligned = false;
+	greater_thans_less_thans ygtls = CountGTLS(point.y, yPoints);
+	if ((ygtls.greaterThans == 2 && ygtls.lessThans == 1) || (ygtls.greaterThans == 1 && ygtls.lessThans == 2)) {
+		yAligned = true;
+	}
+	
+	//TODO: Check for divide by zero
+	float xPoints[3] = {};
+	xPoints[0] = (point.y - c[0]) / m[0];
+	xPoints[1] = (point.y - c[1]) / m[1];
+	xPoints[2] = (point.y - c[2]) / m[2];
+	
+	b32 xAligned = false;
+	greater_thans_less_thans xgtls = CountGTLS(point.x, xPoints);
+	if ((xgtls.greaterThans == 2 && xgtls.lessThans == 1) || (xgtls.greaterThans == 1 && xgtls.lessThans == 2)) {
+		xAligned = true;
+	}
+	
+	result = (b32)(xAligned && yAligned);
+	if (result) {
+		*red = 0.0f;
+	}
+	return(result);
+}
+
+#include <stdio.h>
+
+internal entity_state UpdatePlayer(controller_input input, game_state gameState, float* red)
 {
 	float maxSpeed = 1.0f;
 	
@@ -95,6 +160,19 @@ internal entity_state UpdatePlayer(controller_input input, game_state gameState)
 	}
 	if (newState.pos.y < (-1.0f * axisCamScale.y)) {
 		newState.pos.y = 1.0f * axisCamScale.y;
+	}
+	
+	
+	vec2 point = newState.pos;
+ vec2 triangle[3] = {
+		{ -1.1f, 1.2f },
+		{ 1.3f, 1.4f },
+		{ -1.5f, -1.6f },
+	};
+	
+	b32 col = PointTriangleIntersection(point, triangle, red);
+	if (col) {
+		printf("INTERSECTION %f, %f\n", point.x, point.y);
 	}
 	
 	result = newState;
@@ -173,18 +251,22 @@ internal void SetVSBufferFromPointerBuffer(vs_constant_buffer* buffer, vs_consta
 	buffer->r = *pointers.r;
 }
 
+#define PLAYER_INDEX 0
+
 #pragma warning(push, 0)
-int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, int cmdShow)
+//int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, int cmdShow)
+int main(void)
 #pragma warning(pop)
 {
 	win32_d3d_program program;
 	if (Win32D3DInitEverything(&program, MainWindowProc, 1280, 720)) {
 		program_state programState = { true };
 		controller_input controllerInput = {};
-		game_state gameState;
+		game_state gameState = {};
 		gameState.cameraPos = {0.0f, 0.0f};
 		gameState.cameraScale = 25.0f;
 		gameState.aspectRatio = program.buffers.ar;
+		gameState.red = 1.0f;
 		
 		
 		entity_state entities[3];
@@ -216,6 +298,8 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 			entityConstantPointerBuffers[i].scale = &gameState.cameraScale;
 			entityConstantPointerBuffers[i].r = &entities[i].rot;
 		}
+		entityConstantPointerBuffers[1].pos = &entities[PLAYER_INDEX].pos;
+		entityConstantPointerBuffers[1].r = &entities[PLAYER_INDEX].rot;
 		
 		vs_constant_buffer entityConstantBuffers[3];
 		
@@ -223,9 +307,9 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 			Win32GetControllerInput(&controllerInput, &programState);
 			float clearColour[4] = {0.0f, 0.0f, 0.0f, 1.0f};
 			program.context.deviceContext->ClearRenderTargetView(program.context.renderTargetView, clearColour);
-			//TODO: Update player should return entitiy_state, get rid of player_state
-			entities[0] = UpdatePlayer(controllerInput, gameState);
-			gameState.cameraPos = entities[0].pos;
+			entities[PLAYER_INDEX] = UpdatePlayer(controllerInput, gameState, &gameState.red);
+			gameState.cameraPos = entities[PLAYER_INDEX].pos;
+			
 			
 			program.buffers.constantBufferData = {};
 			SetVSBufferFromPointerBuffer(&entityConstantBuffers[2], entityConstantPointerBuffers[2]);
@@ -246,8 +330,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, in
 			
 			if (controllerInput.up) {
 				program.buffers.constantBufferData = {};
-				entities[1].pos = entities[0].pos;
-				entities[1].rot = entities[0].rot;
 				entities[1].distort.width = 1.0f - (RandomFloat() / 2.0f);
 				entities[1].distort.height = 1.0f - (RandomFloat() / 4.0f);
 				SetVSBufferFromPointerBuffer(&entityConstantBuffers[1], entityConstantPointerBuffers[1]);
