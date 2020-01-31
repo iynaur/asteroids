@@ -17,7 +17,7 @@
 #pragma warning(pop)
 #include "common_types.h"
 #include "common_maths.h"
-#include "win32_d3d.cpp"
+#include "win32_d3d.hpp"
 
 struct program_state {
 	b32 running;

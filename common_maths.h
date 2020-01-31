@@ -122,7 +122,7 @@ inline vec2 RadToVec2(float r)
 }
 
 #ifndef WIN32_D3D_CPP
-#include "win32_d3d.cpp"
+#include "win32_d3d.hpp"
 #endif
 
 internal u32 RandomNumber(void)

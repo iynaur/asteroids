@@ -133,7 +133,8 @@ internal b32 D3DInitShaders(d3d_shaders* shaders, ID3D11Device* device, ID3D11De
 	ID3D11VertexShader* vertexShader;
 	ID3D11PixelShader* pixelShader;
 	
-	char* shaderFilename = "../../code/shaders/shader.hlsl";
+	system("dir .");
+	char* shaderFilename = "./shaders/shader.hlsl";
 	
 	HANDLE fileHandle = CreateFileA(
 		shaderFilename,
